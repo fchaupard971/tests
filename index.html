@@ -320,24 +320,6 @@ canvas{max-height:220px}
     <div class="fg"><label>Dernier CT</label><input id="vct" type="date"></div>
   </div>
   <div class="fg"><label>Taille des pneus</label><input id="vpn"></div>
-  <div class="sdiv">📍 Lieu de réception</div>
-  <div class="fg"><label>Commune (Guadeloupe / Marie-Galante)</label>
-    <select id="vcom">
-      <option value="">-- Choisir --</option>
-      <optgroup label="Grande-Terre">
-        <option>Pointe-à-Pitre</option><option>Les Abymes</option><option>Baie-Mahault</option><option>Gosier</option><option>Sainte-Anne</option><option>Saint-François</option><option>Le Moule</option><option>Morne-à-l'Eau</option><option>Port-Louis</option><option>Anse-Bertrand</option><option>Petit-Canal</option>
-      </optgroup>
-      <optgroup label="Basse-Terre">
-        <option>Basse-Terre</option><option>Saint-Claude</option><option>Gourbeyre</option><option>Trois-Rivières</option><option>Capesterre-Belle-Eau</option><option>Goyave</option><option>Petit-Bourg</option><option>Lamentin</option><option>Bouillante</option><option>Pointe-Noire</option><option>Deshaies</option><option>Sainte-Rose</option><option>Vieux-Habitants</option><option>Baillif</option>
-      </optgroup>
-      <optgroup label="Marie-Galante">
-        <option>Grand-Bourg</option><option>Capesterre-de-Marie-Galante</option><option>Saint-Louis (Marie-Galante)</option>
-      </optgroup>
-      <optgroup label="Autres îles">
-        <option>La Désirade</option><option>Terre-de-Haut</option><option>Terre-de-Bas</option>
-      </optgroup>
-    </select>
-  </div>
   <div class="sdiv">Type de prestation</div>
   <div class="tr"><button class="tb" id="vtp-a" onclick="selVTP('acte')">À l'acte</button><button class="tb" id="vtp-b" onclick="selVTP('abonnement')">Abonnement</button></div>
   <div id="vab-sec" style="display:none;margin-bottom:10px">
@@ -676,7 +658,7 @@ async function showVehicles(cid){
         <div class="vf"><div class="l">Énergie</div><div class="v">${v.energie?`<span class="eb ${v.energie}">${v.energie}</span>`:'—'}</div></div>
         <div class="vf"><div class="l">Contrôle technique</div><div class="v">${fd(v.ct_date)}</div></div>
         <div class="vf"><div class="l">Pneus</div><div class="v">${v.pneus||'—'}</div></div>
-        ${v.commune_reception?`<div class="vf"><div class="l">Commune réception</div><div class="v"><span class="commune-badge">📍 ${v.commune_reception}</span></div></div>`:''}
+
       </div>
       <div class="pz"><div class="pz-t">💳 Prestation</div>${pHTML(v)}</div></div>`;
   }).join('');
@@ -689,8 +671,8 @@ async function openVM(cid,vid){
   curCID=cid;editVID=vid||null;cVTP=null;cVAb=null;
   document.getElementById('vm-t').textContent=vid?'Modifier le véhicule':'Ajouter un véhicule';
   document.querySelectorAll('#vm .tb,.ao').forEach(b=>b.classList.remove('on'));
-  document.getElementById('vab-sec').style.display='none';document.getElementById('vcom').value='';
-  if(vid){const{data:v}=await SB.from('vehicules').select('*').eq('id',vid).single();if(v){document.getElementById('vma').value=v.marque||'';document.getElementById('vmo').value=v.modele||'';document.getElementById('vv').value=v.vin||'';document.getElementById('vpl').value=v.plaque||'';document.getElementById('vim').value=v.immat_date?v.immat_date.split('T')[0]:'';document.getElementById('vkm').value=v.kilometrage||'';document.getElementById('ven').value=v.energie||'';document.getElementById('vct').value=v.ct_date?v.ct_date.split('T')[0]:'';document.getElementById('vpn').value=v.pneus||'';document.getElementById('vcom').value=v.commune_reception||'';if(v.type_prestation)selVTP(v.type_prestation);if(v.abonnement)selVAb(v.abonnement);}}
+  document.getElementById('vab-sec').style.display='none';
+  if(vid){const{data:v}=await SB.from('vehicules').select('*').eq('id',vid).single();if(v){document.getElementById('vma').value=v.marque||'';document.getElementById('vmo').value=v.modele||'';document.getElementById('vv').value=v.vin||'';document.getElementById('vpl').value=v.plaque||'';document.getElementById('vim').value=v.immat_date?v.immat_date.split('T')[0]:'';document.getElementById('vkm').value=v.kilometrage||'';document.getElementById('ven').value=v.energie||'';document.getElementById('vct').value=v.ct_date?v.ct_date.split('T')[0]:'';document.getElementById('vpn').value=v.pneus||'';if(v.type_prestation)selVTP(v.type_prestation);if(v.abonnement)selVAb(v.abonnement);}}
   else{['vma','vmo','vv','vpl','vim','vkm','vct','vpn'].forEach(i=>document.getElementById(i).value='');document.getElementById('ven').value='';}
   document.getElementById('vm').style.display='flex';
 }
@@ -700,7 +682,7 @@ async function saveVehicle(){
   if(!ma||!mo){alert('Marque et modèle requis.');return;}
   if(cVTP==='abonnement'&&!cVAb){alert('Choisissez une formule.');return;}
   setBtn('sv-btn',true);
-  const data={contact_id:curCID,marque:ma,modele:mo,vin:document.getElementById('vv').value.trim()||null,plaque:document.getElementById('vpl').value.trim().toUpperCase()||null,immat_date:document.getElementById('vim').value||null,kilometrage:parseInt(document.getElementById('vkm').value)||null,energie:document.getElementById('ven').value||null,ct_date:document.getElementById('vct').value||null,pneus:document.getElementById('vpn').value.trim()||null,commune_reception:document.getElementById('vcom').value||null,type_prestation:cVTP||null,abonnement:cVTP==='abonnement'?cVAb:null};
+  const data={contact_id:curCID,marque:ma,modele:mo,vin:document.getElementById('vv').value.trim()||null,plaque:document.getElementById('vpl').value.trim().toUpperCase()||null,immat_date:document.getElementById('vim').value||null,kilometrage:parseInt(document.getElementById('vkm').value)||null,energie:document.getElementById('ven').value||null,ct_date:document.getElementById('vct').value||null,pneus:document.getElementById('vpn').value.trim()||null,type_prestation:cVTP||null,abonnement:cVTP==='abonnement'?cVAb:null};
   let error;
   if(editVID){({error}=await SB.from('vehicules').update(data).eq('id',editVID));}
   else{({error}=await SB.from('vehicules').insert(data));}
@@ -1611,7 +1593,7 @@ async function showStats(){
   for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);monthLabels.push(d.toLocaleString('fr-FR',{month:'short',year:'2-digit'}));}
   gl.filter(g=>g.statut==='done'&&g.date_debut).forEach(g=>{const d=new Date(g.date_debut);const diff=(now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());if(diff>=0&&diff<12)monthlyCA[11-diff]+=(parseFloat(g.montant_total)||0);});
   // Communes
-  const byCommune={};vl.filter(v=>v.commune_reception).forEach(v=>{byCommune[v.commune_reception]=(byCommune[v.commune_reception]||0)+1;});
+  const byCommune={};gl.filter(g=>g.commune).forEach(g=>{byCommune[g.commune]=(byCommune[g.commune]||0)+1;});
   const communeSorted=Object.entries(byCommune).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const COLORS=['#534AB7','#0F6E56','#185FA5','#854F0B','#A32D2D','#3B6D11','#72243E','#444441','#634890','#0C6E8A'];
   document.getElementById('content').innerHTML=`
