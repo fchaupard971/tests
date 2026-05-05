@@ -262,11 +262,11 @@ canvas{max-height:220px}
       <button class="nav-btn" id="nav-docs" onclick="switchNav('docs')">📄 Devis / Factures</button>
       <button class="nav-btn" id="nav-stats" onclick="switchNav('stats')">📊 Statistiques</button>
     </div>
-    <div class="sb-search">
+    <div class="sb-search" id="sb-search-wrap">
       <input id="sq" placeholder="🔍 Nom, prénom…" oninput="renderList()">
       <input id="sqp" placeholder="🚗 Immatriculation…" oninput="renderList()" style="font-family:var(--mono)">
     </div>
-    <div class="sb-filters">
+    <div class="sb-filters" id="sb-filters-wrap">
       <button class="fb on" onclick="setF('tous',this)">Tous</button>
       <button class="fb" onclick="setF('client',this)">Clients</button>
       <button class="fb" onclick="setF('prospect',this)">Prospects</button>
@@ -437,7 +437,7 @@ canvas{max-height:220px}
     <div class="md-doc-body">
       <div class="fr" style="margin-bottom:14px">
         <div class="fg"><label>Type</label><select id="doc-type" onchange="renderDocPreviewSync();updateDocBadges()"><option value="devis">Devis</option><option value="facture">Facture</option></select></div>
-        <div class="fg"><label>Statut</label><select id="doc-status" onchange="updateDocBadges()"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="émise">Émise</option><option value="payé">Payée</option></select></div>
+        <div class="fg"><label>Statut</label><select id="doc-status" onchange="updateDocBadges()"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="envoyé">Émise</option><option value="payé">Payée</option></select></div>
       </div>
       <div class="fr">
         <div class="fg"><label>Date d'émission</label><input id="doc-date-em" type="date" onchange="renderDocPreviewSync()"></div>
@@ -501,8 +501,8 @@ canvas{max-height:220px}
 //  Interventions groupées + Devis/Factures + Rappels multi-canal
 // ══════════════════════════════════════════════════════
 
-const SUPA_URL='https://cskuuueltxfevzqefhkn.supabase.co';
-const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNza3V1dWVsdHhmZXZ6cWVmaGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5Nzk4MDMsImV4cCI6MjA5MzU1NTgwM30.zcTKbWXaeu0ZNA-ls6k85a5RJi36NavxS8uVw7ZU3xs';
+const SUPA_URL='https://dszbfcdkeslujoviooss.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzemJmY2RrZXNsdWpvdmlvb3NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5OTE1OTgsImV4cCI6MjA5MzU2NzU5OH0.tNDp0i5EnNm4Cx8ldYkkh27bMOMTTgU8lTS1w3olGco';
 const SB=window.supabase.createClient(SUPA_URL,SUPA_KEY);
 
 // ── TYPES D'ACTES ─────────────────────────────────────
@@ -559,9 +559,21 @@ let currentNav='clients';
 function switchNav(v){
   currentNav=v;
   ['clients','docs','stats'].forEach(n=>{document.getElementById('nav-'+n)?.classList.toggle('on',n===v);});
+  // Afficher/masquer les éléments sidebar liés aux contacts
+  const clientOnly=['sb-search-wrap','sb-filters-wrap','list','new-btn'];
+  document.getElementById('sb-search-wrap')?.style && (document.getElementById('sb-search-wrap').style.display = v==='clients'?'flex':'none');
+  document.getElementById('sb-filters-wrap')?.style && (document.getElementById('sb-filters-wrap').style.display = v==='clients'?'flex':'none');
+  document.getElementById('list').style.display = v==='clients'?'block':'none';
+  document.getElementById('new-btn').style.display = (v==='clients'&&can('create'))?'block':'none';
+  // Réinitialiser la sélection si on quitte les clients
+  if(v!=='clients'){selected=null;renderList();}
   if(v==='stats')showStats();
   else if(v==='docs')showAllDocs();
-  else{document.getElementById('t-title').textContent='Tableau de bord';document.getElementById('t-right').innerHTML='';document.getElementById('content').innerHTML='<div class="empty"><div style="font-size:28px;margin-bottom:6px">👥</div><div>Sélectionnez un contact</div></div>';}
+  else{
+    document.getElementById('t-title').textContent='Tableau de bord';
+    document.getElementById('t-right').innerHTML='';
+    document.getElementById('content').innerHTML='<div class="empty"><div style="font-size:28px;margin-bottom:6px">👥</div><div>Sélectionnez un contact</div></div>';
+  }
 }
 
 // ── CONTACTS ───────────────────────────────────────────
@@ -1233,9 +1245,9 @@ async function sendDocWA(){
 }
 
 // ── STATUT helpers ─────────────────────────────────────────
-const STATUT_LABELS={brouillon:'⚪ Brouillon',envoyé:'📤 Envoyé',accepté:'✅ Accepté',refusé:'❌ Refusé','émise':'📄 Émise',payé:'💰 Payée'};
-const STATUT_COLORS={brouillon:'#78716c',envoyé:'#185FA5',accepté:'#3B6D11',refusé:'#A32D2D','émise':'#534AB7',payé:'#15803d'};
-const STATUT_BG={brouillon:'#f5f5f4',envoyé:'#E6F1FB',accepté:'#EAF3DE',refusé:'#FCEBEB','émise':'#EEEDFE',payé:'#F0FDF4'};
+const STATUT_LABELS={brouillon:'⚪ Brouillon',envoyé:'📤 Envoyé',accepté:'✅ Accepté',refusé:'❌ Refusé','envoyé':'📤 Envoyée',payé:'💰 Payée'};
+const STATUT_COLORS={brouillon:'#78716c',envoyé:'#185FA5',accepté:'#3B6D11',refusé:'#A32D2D','envoyé':'#534AB7',payé:'#15803d'};
+const STATUT_BG={brouillon:'#f5f5f4',envoyé:'#E6F1FB',accepté:'#EAF3DE',refusé:'#FCEBEB','envoyé':'#EEEDFE',payé:'#F0FDF4'};
 
 function updateDocBadges(){
   const type=document.getElementById('doc-type')?.value||'devis';
@@ -1249,7 +1261,7 @@ function updateDocBadges(){
   // Afficher "Convertir en facture" si c'est un devis accepté sauvegardé
   if(cb)cb.style.display=(type==='devis'&&(statut==='accepté')&&currentDoc.docId)?'flex':'none';
   // Afficher "Marquer payée" si facture émise
-  if(pb)pb.style.display=(type==='facture'&&statut==='émise'&&currentDoc.docId)?'flex':'none';
+  if(pb)pb.style.display=(type==='facture'&&statut==='envoyé'&&currentDoc.docId)?'flex':'none';
 }
 
 async function convertToFacture(){
@@ -1270,7 +1282,7 @@ async function convertToFacture(){
     type_doc:'facture',numero:numFac,
     date_emission:today(),
     date_echeance:addDays(today(),30),
-    statut:'émise',
+    statut:'envoyé',
     lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,
     mentions:document.getElementById('doc-mentions').value||null,
     bpa:null,note_interne:null
@@ -1311,13 +1323,13 @@ async function showAllDocs(){
   const factures=all.filter(d=>d.type_doc==='facture');
   const totalDevis=devis.reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
   const totalFac=factures.filter(d=>d.statut==='payé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
-  const totalEmis=factures.filter(d=>d.statut==='émise').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+  const totalEmis=factures.filter(d=>d.statut==='envoyé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
 
   const mkCard=d=>{
     const c=d.contacts;const v=d.vehicules;
     const isDevis=d.type_doc==='devis';
     const canConvert=isDevis&&d.statut==='accepté';
-    const canPay=!isDevis&&d.statut==='émise';
+    const canPay=!isDevis&&d.statut==='envoyé';
     const isLocked=!isDevis&&d.statut==='payé';
     return`<div class="doc-card" style="${isLocked?'opacity:.85':''}">
       <div class="doc-hd">
@@ -1373,7 +1385,7 @@ async function quickConvert(docId,cid,vid,gid){
     group_id:gid,contact_id:cid,vehicule_id:vid,
     type_doc:'facture',numero:numFac,
     date_emission:today(),date_echeance:addDays(today(),30),
-    statut:'émise',
+    statut:'envoyé',
     lignes:d.lignes,montant_ht:d.montant_ht,tva_pct:d.tva_pct,montant_tva:d.montant_tva,montant_ttc:d.montant_ttc,
     mentions:d.mentions,bpa:null
   });
