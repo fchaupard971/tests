@@ -419,19 +419,25 @@ canvas{max-height:220px}
 <div class="mo-overlay-doc" id="doc-modal" style="display:none">
   <div class="md-doc">
     <div class="md-doc-toolbar">
-      <h3 id="doc-modal-title">Nouveau devis</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h3 id="doc-modal-title">Nouveau devis</h3>
+        <span id="doc-type-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600"></span>
+        <span id="doc-statut-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500"></span>
+      </div>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="b" id="btn-convert-facture" onclick="convertToFacture()" style="display:none">🧾 Convertir en facture</button>
+        <button class="b" id="btn-marquer-paye" onclick="marquerPaye()" style="display:none">✅ Marquer payée</button>
         <button class="b" onclick="printDoc()">🖨️ Imprimer / PDF</button>
-        <button class="b or" id="doc-send-email-btn" onclick="sendDocEmail()">📧 Envoyer par email</button>
-        <button class="b wa" id="doc-send-wa-btn" onclick="sendDocWA()">🟢 WhatsApp</button>
+        <button class="b or" onclick="sendDocEmail()">📧 Email</button>
+        <button class="b wa" onclick="sendDocWA()">🟢 WhatsApp</button>
         <button class="b p" id="save-doc-btn" onclick="saveDoc()">💾 Enregistrer</button>
         <button class="b bk" onclick="closeDocModal()">✕ Fermer</button>
       </div>
     </div>
     <div class="md-doc-body">
       <div class="fr" style="margin-bottom:14px">
-        <div class="fg"><label>Type</label><select id="doc-type" onchange="renderDocPreviewSync()"><option value="devis">Devis</option><option value="facture">Facture</option></select></div>
-        <div class="fg"><label>Statut</label><select id="doc-status"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="payé">Payé</option></select></div>
+        <div class="fg"><label>Type</label><select id="doc-type" onchange="renderDocPreviewSync();updateDocBadges()"><option value="devis">Devis</option><option value="facture">Facture</option></select></div>
+        <div class="fg"><label>Statut</label><select id="doc-status" onchange="updateDocBadges()"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="émise">Émise</option><option value="payé">Payée</option></select></div>
       </div>
       <div class="fr">
         <div class="fg"><label>Date d'émission</label><input id="doc-date-em" type="date" onchange="renderDocPreviewSync()"></div>
@@ -495,8 +501,8 @@ canvas{max-height:220px}
 //  Interventions groupées + Devis/Factures + Rappels multi-canal
 // ══════════════════════════════════════════════════════
 
-const SUPA_URL='https://cskuuueltxfevzqefhkn.supabase.co';
-const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNza3V1dWVsdHhmZXZ6cWVmaGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5Nzk4MDMsImV4cCI6MjA5MzU1NTgwM30.zcTKbWXaeu0ZNA-ls6k85a5RJi36NavxS8uVw7ZU3xs';
+const SUPA_URL='https://pjlndasscgqfqpktryum.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqbG5kYXNzY2dxZnFwa3RyeXVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MzA1OTEsImV4cCI6MjA5MzQwNjU5MX0.xqHd_lydrBqGEW1kDsvM8pbDb_e_jm0RcAaQixXqkG0';
 const SB=window.supabase.createClient(SUPA_URL,SUPA_KEY);
 
 // ── TYPES D'ACTES ─────────────────────────────────────
@@ -726,10 +732,14 @@ async function showInterventions(cid,vid){
       else if(a.type==='Gardiennage')detail=`${a.gard_form||''} × ${a.gard_qty||1}`;
       return`<div class="acte-row"><span class="acte-ico">${iIco(a.type)}</span><div style="flex:1"><div class="acte-name">${a.type}</div>${detail?`<div class="acte-detail">${detail}</div>`:''}</div><div class="acte-price">${fm(a.montant)}</div></div>`;
     }).join('');
-    const docsHTML=docs.map(d=>`<span class="doc-type ${d.type_doc}">${d.type_doc==='devis'?'📋':'🧾'} ${d.numero||d.type_doc}</span>`).join(' ');
+    const docsHTML=docs.map(d=>{const bg=STATUT_BG[d.statut]||'#f5f5f4';const col=STATUT_COLORS[d.statut]||'#78716c';return`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${bg};color:${col};font-weight:500;border:0.5px solid ${col}33">${d.type_doc==='devis'?'📋':'🧾'} ${d.numero||d.type_doc}</span>`;}).join(' ');
     const editBtn=can('interventions')?`<button class="b" onclick="openIGM('${g.vehicule_id}','${g.vehicule_id}','${g.id}',true)">Modifier</button>`:'';
     const delBtn=can('delete')?`<button class="b d" onclick="delIG('${g.id}','${vid}')">Supprimer</button>`:'';
-    const newDocBtn=can('interventions')?`<button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}')">📋 Devis/Facture</button>`:'';
+    const hasDocs=docs&&docs.length>0;
+    const hasFacture=docs&&docs.some(d=>d.type_doc==='facture');
+    const hasDevis=docs&&docs.some(d=>d.type_doc==='devis'&&d.statut!=='accepté');
+    const hasDevisAccepte=docs&&docs.some(d=>d.type_doc==='devis'&&d.statut==='accepté');
+    const newDocBtn=can('interventions')?(!hasDocs?`<button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}')">📋 Créer un devis</button>`:(!hasFacture&&hasDevisAccepte?`<button class="b p" onclick="quickConvertFromGroup('${g.id}','${cid}','${vid}')">🧾 → Facture</button>`:'')):'';;
     return`<div class="ig-card">
       <div class="ig-header">
         <div class="ig-meta">
@@ -1006,6 +1016,7 @@ async function openDocModal(gid,cid,vid,docId){
   const{count}=await SB.from('documents_facturation').select('*',{count:'exact',head:true});
   const num=(count||0)+1;
   document.getElementById('doc-num').value=`DEV-${new Date().getFullYear()}-${String(num).padStart(4,'0')}`;
+  currentDoc.statut='brouillon';
   // Load existing doc if editing
   if(docId){
     const{data:d}=await SB.from('documents_facturation').select('*').eq('id',docId).single();
@@ -1036,6 +1047,7 @@ async function openDocModal(gid,cid,vid,docId){
   }
   renderDocLignes();
   renderDocPreviewSync();
+  updateDocBadges();
   document.getElementById('doc-modal').style.display='flex';
 }
 
@@ -1220,43 +1232,179 @@ async function sendDocWA(){
   window.open(url,'_blank');
 }
 
+// ── STATUT helpers ─────────────────────────────────────────
+const STATUT_LABELS={brouillon:'⚪ Brouillon',envoyé:'📤 Envoyé',accepté:'✅ Accepté',refusé:'❌ Refusé','émise':'📄 Émise',payé:'💰 Payée'};
+const STATUT_COLORS={brouillon:'#78716c',envoyé:'#185FA5',accepté:'#3B6D11',refusé:'#A32D2D','émise':'#534AB7',payé:'#15803d'};
+const STATUT_BG={brouillon:'#f5f5f4',envoyé:'#E6F1FB',accepté:'#EAF3DE',refusé:'#FCEBEB','émise':'#EEEDFE',payé:'#F0FDF4'};
+
+function updateDocBadges(){
+  const type=document.getElementById('doc-type')?.value||'devis';
+  const statut=document.getElementById('doc-status')?.value||'brouillon';
+  const tb=document.getElementById('doc-type-badge');
+  const sb=document.getElementById('doc-statut-badge');
+  const cb=document.getElementById('btn-convert-facture');
+  const pb=document.getElementById('btn-marquer-paye');
+  if(tb){tb.textContent=type==='facture'?'🧾 Facture':'📋 Devis';tb.style.background=type==='facture'?'#EEEDFE':'#FEF3E2';tb.style.color=type==='facture'?'#3C3489':'#92400E';}
+  if(sb){sb.textContent=STATUT_LABELS[statut]||statut;sb.style.background=STATUT_BG[statut]||'#f5f5f4';sb.style.color=STATUT_COLORS[statut]||'#78716c';}
+  // Afficher "Convertir en facture" si c'est un devis accepté sauvegardé
+  if(cb)cb.style.display=(type==='devis'&&(statut==='accepté')&&currentDoc.docId)?'flex':'none';
+  // Afficher "Marquer payée" si facture émise
+  if(pb)pb.style.display=(type==='facture'&&statut==='émise'&&currentDoc.docId)?'flex':'none';
+}
+
+async function convertToFacture(){
+  if(!currentDoc.docId){toast("Enregistrez d'abord le devis.",'ko');return;}
+  if(!confirm('Convertir ce devis en facture ? Le devis sera archivé et une nouvelle facture sera créée.'))return;
+  setBtn('btn-convert-facture',true);
+  // 1. Marquer le devis comme converti
+  await SB.from('documents_facturation').update({statut:'accepté'}).eq('id',currentDoc.docId);
+  // 2. Générer numéro facture
+  const{count}=await SB.from('documents_facturation').select('*',{count:'exact',head:true}).eq('type_doc','facture');
+  const numFac=`FAC-${new Date().getFullYear()}-${String((count||0)+1).padStart(4,'0')}`;
+  const tva=parseFloat(document.getElementById('doc-tva').value)||0;
+  const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
+  const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
+  // 3. Créer la facture
+  const{data:newFac,error}=await SB.from('documents_facturation').insert({
+    group_id:currentDoc.groupId,contact_id:currentDoc.contactId,vehicule_id:currentDoc.vehiculeId,
+    type_doc:'facture',numero:numFac,
+    date_emission:today(),
+    date_echeance:addDays(today(),30),
+    statut:'émise',
+    lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,
+    mentions:document.getElementById('doc-mentions').value||null,
+    bpa:null,note_interne:null
+  }).select().single();
+  setBtn('btn-convert-facture',false,'🧾 Convertir en facture');
+  if(error){toast('Erreur : '+error.message,'ko');return;}
+  toast('Facture '+numFac+' créée ✓','ok');
+  // Ouvrir la nouvelle facture
+  await openDocModal(currentDoc.groupId,currentDoc.contactId,currentDoc.vehiculeId,newFac.id);
+}
+
+async function marquerPaye(){
+  if(!currentDoc.docId){toast("Enregistrez d'abord.",'ko');return;}
+  await SB.from('documents_facturation').update({statut:'payé'}).eq('id',currentDoc.docId);
+  document.getElementById('doc-status').value='payé';
+  currentDoc.statut='payé';
+  updateDocBadges();
+  toast('Facture marquée comme payée ✓','ok');
+  if(curVID)showInterventions(curCID,curVID);
+}
+
+function addDays(dateStr,days){
+  const d=new Date(dateStr);d.setDate(d.getDate()+days);
+  return d.toISOString().split('T')[0];
+}
+
 // Liste tous les documents
 async function showAllDocs(){
   document.getElementById('t-title').textContent='Devis & Factures';
-  document.getElementById('t-right').innerHTML='';
+  document.getElementById('t-right').innerHTML='<button class="b bk" onclick="showStatsPipeline()">📊 Pipeline</button>';
   document.getElementById('content').innerHTML='<div class="loading"><div class="spin"></div></div>';
   const{data:docs}=await SB.from('documents_facturation').select('*,contacts(prenom,nom),vehicules(marque,modele,plaque)').order('created_at',{ascending:false});
   const all=docs||[];
   if(!all.length){document.getElementById('content').innerHTML='<div class="ni" style="margin-top:20px">Aucun document créé. Ouvrez une intervention et cliquez sur 📋 Devis/Facture.</div>';return;}
-  const html=all.map(d=>{
+
+  // Séparer devis et factures
+  const devis=all.filter(d=>d.type_doc==='devis');
+  const factures=all.filter(d=>d.type_doc==='facture');
+  const totalDevis=devis.reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+  const totalFac=factures.filter(d=>d.statut==='payé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+  const totalEmis=factures.filter(d=>d.statut==='émise').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+
+  const mkCard=d=>{
     const c=d.contacts;const v=d.vehicules;
-    return`<div class="doc-card">
+    const isDevis=d.type_doc==='devis';
+    const canConvert=isDevis&&d.statut==='accepté';
+    const canPay=!isDevis&&d.statut==='émise';
+    const isLocked=!isDevis&&d.statut==='payé';
+    return`<div class="doc-card" style="${isLocked?'opacity:.85':''}">
       <div class="doc-hd">
         <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-            <span class="doc-type ${d.type_doc}">${d.type_doc==='facture'?'🧾 Facture':'📋 Devis'}</span>
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;flex-wrap:wrap">
+            <span class="doc-type ${d.type_doc}">${isDevis?'📋 Devis':'🧾 Facture'}</span>
             <span class="doc-num">${d.numero||'—'}</span>
-            <span class="doc-status ${d.statut}">${d.statut}</span>
+            <span class="doc-status ${d.statut}" style="background:${STATUT_BG[d.statut]||'#f5f5f4'};color:${STATUT_COLORS[d.statut]||'#78716c'}">${STATUT_LABELS[d.statut]||d.statut}</span>
           </div>
           <div style="font-size:11px;color:var(--tx2)">${c?c.prenom+' '+c.nom:'—'}${v?' · 🚗 '+v.marque+' '+v.modele+(v.plaque?' ('+v.plaque+')':''):''}</div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:3px">Émis le ${fd(d.date_emission)}${d.date_echeance?' · Échéance : '+fd(d.date_echeance):''}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:15px;font-weight:700;color:var(--bt)">${fm(d.montant_ttc)}</div>
-          <div style="font-size:10px;color:var(--tx2)">Émis le ${fd(d.date_emission)}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--bt)">${fm(d.montant_ttc)}</div>
+          ${d.tva_pct>0?`<div style="font-size:10px;color:var(--tx2)">HT : ${fm(d.montant_ht)} + TVA ${d.tva_pct}%</div>`:''}
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="b" onclick="openDocModalById('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">✏️ Modifier</button>
+        ${canConvert?`<button class="b p" onclick="quickConvert('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">🧾 → Facture</button>`:''}
+        ${canPay?`<button class="b g" onclick="quickPay('${d.id}')">✅ Marquer payée</button>`:''}
+        <button class="b" onclick="openDocModalById('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">✏️ Ouvrir</button>
         <button class="b or" onclick="openAndPrint('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">🖨️ Imprimer</button>
-        <button class="b" onclick="openDocSendWA('${d.id}','${d.contact_id}')">🟢 WhatsApp</button>
         <button class="b" onclick="openDocSendEmail('${d.id}','${d.contact_id}')">📧 Email</button>
-        ${can('delete')?`<button class="b d" onclick="delDoc('${d.id}')">Supprimer</button>`:''}
+        <button class="b wa" onclick="openDocSendWA('${d.id}','${d.contact_id}')">🟢 WhatsApp</button>
+        ${can('delete')&&!isLocked?`<button class="b d" onclick="delDoc('${d.id}')">Supprimer</button>`:''}
       </div>
     </div>`;
-  }).join('');
-  document.getElementById('content').innerHTML=`<div class="sh"><h3>📄 Tous les documents (${all.length})</h3></div>${html}`;
+  };
+
+  // KPIs pipeline
+  const kpis=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+    <div class="dc"><div class="dl">Devis en cours</div><div class="dv">${devis.filter(d=>['brouillon','envoyé','accepté'].includes(d.statut)).length} devis</div></div>
+    <div class="dc"><div class="dl">CA devis (total)</div><div class="dv" style="color:var(--ot)">${Number(totalDevis).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</div></div>
+    <div class="dc"><div class="dl">Factures à encaisser</div><div class="dv" style="color:var(--put)">${Number(totalEmis).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</div></div>
+    <div class="dc"><div class="dl">CA encaissé</div><div class="dv" style="color:var(--gt)">${Number(totalFac).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</div></div>
+  </div>`;
+
+  const devisHTML=devis.length?`<div class="sh" style="margin-bottom:10px"><h3>📋 Devis (${devis.length})</h3></div>${devis.map(mkCard).join('')}`:'';
+  const factHTML=factures.length?`<div class="sh" style="margin-top:${devis.length?'20px':'0'};margin-bottom:10px"><h3>🧾 Factures (${factures.length})</h3></div>${factures.map(mkCard).join('')}`:'';
+
+  document.getElementById('content').innerHTML=kpis+devisHTML+factHTML;
 }
 
+// Conversion rapide depuis la liste (sans ouvrir le modal)
+async function quickConvert(docId,cid,vid,gid){
+  if(!confirm('Convertir ce devis en facture ?'))return;
+  const{data:d}=await SB.from('documents_facturation').select('*').eq('id',docId).single();
+  if(!d)return;
+  await SB.from('documents_facturation').update({statut:'accepté'}).eq('id',docId);
+  const{count}=await SB.from('documents_facturation').select('*',{count:'exact',head:true}).eq('type_doc','facture');
+  const numFac=`FAC-${new Date().getFullYear()}-${String((count||0)+1).padStart(4,'0')}`;
+  const{error}=await SB.from('documents_facturation').insert({
+    group_id:gid,contact_id:cid,vehicule_id:vid,
+    type_doc:'facture',numero:numFac,
+    date_emission:today(),date_echeance:addDays(today(),30),
+    statut:'émise',
+    lignes:d.lignes,montant_ht:d.montant_ht,tva_pct:d.tva_pct,montant_tva:d.montant_tva,montant_ttc:d.montant_ttc,
+    mentions:d.mentions,bpa:null
+  });
+  if(error){toast('Erreur : '+error.message,'ko');return;}
+  toast('Facture '+numFac+' créée ✓','ok');
+  await showAllDocs();
+}
+
+// Marquer payée rapidement depuis la liste
+async function quickPay(docId){
+  if(!confirm('Marquer cette facture comme payée ?'))return;
+  const{error}=await SB.from('documents_facturation').update({statut:'payé'}).eq('id',docId);
+  if(error){toast('Erreur : '+error.message,'ko');return;}
+  toast('Facture marquée payée ✓','ok');
+  await showAllDocs();
+}
+
+// Conversion devis→facture depuis la fiche intervention
+async function quickConvertFromGroup(gid,cid,vid){
+  const{data:devisList}=await SB.from('documents_facturation').select('*').eq('group_id',gid).eq('type_doc','devis').order('created_at',{ascending:false});
+  const devis=devisList?.[0];
+  if(!devis){toast("Aucun devis trouvé pour cette intervention.",'ko');return;}
+  await quickConvert(devis.id,cid,vid,gid);
+  if(curVID)await showInterventions(cid,vid);
+}
+
+// Pipeline visuel (simplifié dans la zone contenu)
+function showStatsPipeline(){
+  // Already shown in showAllDocs via KPIs
+  showAllDocs();
+}
 async function openDocModalById(docId,cid,vid,gid){await openDocModal(gid,cid,vid,docId);}
 async function openAndPrint(docId,cid,vid,gid){await openDocModal(gid,cid,vid,docId);setTimeout(()=>printDoc(),400);}
 async function openDocSendEmail(docId,cid){
