@@ -1374,36 +1374,43 @@ async function showAllDocs(forceReload=true){
 
 function renderDocsList(){
   const all=allDocsCache;
-  if(!all.length){
-    document.getElementById('content').innerHTML=`
-      ${docsToolbar(all)}
-      <div class="ni" style="margin-top:20px">Aucun document créé. Ouvrez une intervention et cliquez sur 📋 Devis/Facture.</div>`;
-    return;
-  }
+  const content=document.getElementById('content');
 
-  // Lire les filtres
+  // ── Lire les filtres AVANT de toucher au DOM ──────────────
   const typeFilter=document.getElementById('docs-filter-type')?.value||'tous';
   const statutFilter=document.getElementById('docs-filter-statut')?.value||'tous';
   const searchQ=(document.getElementById('docs-search')?.value||'').toLowerCase().trim();
 
-  // Appliquer les filtres
+  if(!all.length){
+    content.innerHTML=docsToolbar(all)+
+      '<div class="ni" style="margin-top:20px">Aucun document créé. Ouvrez une intervention et cliquez sur 📋 Devis/Facture.</div>';
+    return;
+  }
+
+  // ── Filtrer ───────────────────────────────────────────────
   let filtered=all.filter(d=>{
     if(typeFilter!=='tous'&&d.type_doc!==typeFilter)return false;
     if(statutFilter!=='tous'&&d.statut!==statutFilter)return false;
     if(searchQ){
       const c=d.contacts;const v=d.vehicules;
-      const haystack=[
-        d.numero||'',
-        c?c.prenom+' '+c.nom:'',
+      const hay=[d.numero||'',c?c.prenom+' '+c.nom:'',
         v?v.marque+' '+v.modele+' '+(v.plaque||''):'',
-        d.statut||'',
-        fm(d.montant_ttc)
+        d.statut||'',fm(d.montant_ttc)
       ].join(' ').toLowerCase();
-      if(!haystack.includes(searchQ))return false;
+      if(!hay.includes(searchQ))return false;
     }
     return true;
   });
 
+  // ── Tri : devis EN PREMIER, puis factures ; dans chaque groupe par date desc ──
+  filtered.sort((a,b)=>{
+    if(a.type_doc===b.type_doc){
+      return new Date(b.date_emission||0)-new Date(a.date_emission||0);
+    }
+    return a.type_doc==='devis'?-1:1;
+  });
+
+  // ── KPIs (calculés sur all, pas filtered) ────────────────
   const devis=all.filter(d=>d.type_doc==='devis');
   const factures=all.filter(d=>d.type_doc==='facture');
   const totalFac=factures.filter(d=>d.statut==='payé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
@@ -1413,13 +1420,11 @@ function renderDocsList(){
   const mkCard=d=>{
     const c=d.contacts;const v=d.vehicules;
     const isDevis=d.type_doc==='devis';
-    // ── BUG FIX : "Convertir" uniquement si devis accepté ET aucune facture liée ──
     const hasLinkedFacture=all.some(x=>x.group_id===d.group_id&&x.type_doc==='facture');
     const canConvert=isDevis&&d.statut==='accepté'&&!hasLinkedFacture;
     const canPay=!isDevis&&d.statut==='envoyé';
     const isLocked=!isDevis&&d.statut==='payé';
-    const bg=isLocked?'opacity:.85':'';
-    return`<div class="doc-card" style="${bg}">
+    return`<div class="doc-card" style="${isLocked?'opacity:.85':''}">
       <div class="doc-hd">
         <div>
           <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;flex-wrap:wrap">
@@ -1437,7 +1442,7 @@ function renderDocsList(){
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${canConvert?`<button class="b p" onclick="quickConvert('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">🧾 → Facture</button>`:''}
-        ${(()=>{if(isDevis&&d.statut==='accepté'&&hasLinkedFacture){const fac=all.find(x=>x.group_id===d.group_id&&x.type_doc==='facture');return fac?`<button class="b g" onclick="openDocModalById('${fac.id}','${fac.contact_id}','${fac.vehicule_id}','${fac.group_id}')" title="Ouvrir la facture liée ${fac.numero||''}">✅ Facture liée : ${fac.numero||'—'} <span style="font-size:10px;opacity:.7">(${STATUT_LABELS[fac.statut]||fac.statut})</span></button>`:'<span style="font-size:10px;color:var(--gt);padding:5px 8px;background:var(--gl);border-radius:var(--r)">✅ Facture créée</span>';}return '';})()}
+        ${(()=>{if(isDevis&&d.statut==='accepté'&&hasLinkedFacture){const fac=all.find(x=>x.group_id===d.group_id&&x.type_doc==='facture');return fac?`<button class="b g" onclick="openDocModalById('${fac.id}','${fac.contact_id}','${fac.vehicule_id}','${fac.group_id}')" title="Ouvrir ${fac.numero||''}">✅ Facture liée : ${fac.numero||'—'} <span style="font-size:10px;opacity:.7">(${STATUT_LABELS[fac.statut]||fac.statut})</span></button>`:'<span style="font-size:10px;color:var(--gt);padding:5px 8px;background:var(--gl);border-radius:var(--r)">✅ Facture créée</span>';}return '';})()}
         ${canPay?`<button class="b g" onclick="quickPay('${d.id}')">✅ Marquer payée</button>`:''}
         <button class="b" onclick="openDocModalById('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">✏️ Ouvrir</button>
         <button class="b or" onclick="openAndPrint('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">🖨️ Imprimer</button>
@@ -1455,16 +1460,29 @@ function renderDocsList(){
     <div class="dc"><div class="dl">CA encaissé</div><div class="dv" style="color:var(--gt)">${Number(totalFac).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</div><div style="font-size:10px;color:var(--tx2);margin-top:2px">${factures.filter(d=>d.statut==='payé').length} facture(s)</div></div>
   </div>`;
 
-  const listTitle=filtered.length!==all.length?`${filtered.length} résultat${filtered.length>1?'s':''} sur ${all.length}`:`${all.length} document${all.length>1?'s':''}`;
+  const listTitle=filtered.length!==all.length
+    ?`${filtered.length} résultat${filtered.length>1?'s':''} sur ${all.length} document${all.length>1?'s':''}`
+    :`${all.length} document${all.length>1?'s':''}`;
 
-  document.getElementById('content').innerHTML=
-    kpis+
-    docsToolbar(all)+
-    (filtered.length?
-      `<div style="font-size:11px;color:var(--tx2);margin-bottom:10px">${listTitle}</div>`+
-      filtered.map(mkCard).join(''):
-      `<div class="ni">Aucun document ne correspond à votre recherche.</div>`
-    );
+  // ── Rendre en 2 passes : toolbar séparée des cartes ───────
+  // La toolbar est rendue UNE SEULE FOIS au chargement.
+  // Les re-renders suivants (filtres/recherche) ne touchent QUE la liste.
+  const toolbarExists=!!document.getElementById('docs-search');
+  if(!toolbarExists){
+    content.innerHTML=kpis+'<div id="docs-toolbar-wrap"></div><div id="docs-count" style="font-size:11px;color:var(--tx2);margin-bottom:10px"></div><div id="docs-list"></div>';
+    document.getElementById('docs-toolbar-wrap').innerHTML=docsToolbar(all);
+  } else {
+    // Mettre à jour les KPIs et la liste sans toucher à la toolbar
+    const kpisEl=content.querySelector('.dc')?.closest('div[style*="grid"]');
+    if(kpisEl)kpisEl.outerHTML=kpis; // remplace uniquement les KPIs
+  }
+
+  const countEl=document.getElementById('docs-count');
+  const listEl=document.getElementById('docs-list');
+  if(countEl)countEl.textContent=listTitle;
+  if(listEl)listEl.innerHTML=filtered.length
+    ?filtered.map(mkCard).join('')
+    :'<div class="ni">Aucun document ne correspond à votre recherche.</div>';
 }
 
 function docsToolbar(all){
