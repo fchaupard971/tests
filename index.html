@@ -1775,7 +1775,7 @@ function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy
 
 const STAT_BLOCS=[
   {id:'kpis',             label:'KPIs généraux',                def:true},
-  {id:'ca_mensuel',       label:'CA mensuel (12 mois)',          def:true},
+  {id:'ca_mensuel',       label:'CA mensuel (18 mois)',          def:true},
   {id:'factures_pipeline',label:'Pipeline factures',             def:true},
   {id:'factures_attente', label:'Factures en attente',           def:true},
   {id:'actes_type',       label:'Actes par type',                def:true},
@@ -1885,11 +1885,12 @@ function renderStats(){
     else if(v.abonnement)byAbo[v.abonnement]=(byAbo[v.abonnement]||0)+1;
   });
 
-  // CA mensuel (12 mois) — basé sur les factures PAYÉES par date d'émission
+  // CA mensuel (18 mois) — basé sur les factures PAYÉES par date d'émission
   // + interventions réalisées pour le nb d'interventions par mois
   var now=new Date();
+  var NB_MOIS=18;
   var monthCA=[];var monthNb=[];var monthLbl=[];
-  for(var mi=11;mi>=0;mi--){
+  for(var mi=NB_MOIS-1;mi>=0;mi--){
     var dt=new Date(now.getFullYear(),now.getMonth()-mi,1);
     monthLbl.push(dt.toLocaleString('fr-FR',{month:'short',year:'2-digit'}));
     monthCA.push(0);monthNb.push(0);
@@ -1898,13 +1899,13 @@ function renderStats(){
   dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='payé'&&d.date_emission;}).forEach(function(d){
     var dt=new Date(d.date_emission);
     var diff=(now.getFullYear()-dt.getFullYear())*12+(now.getMonth()-dt.getMonth());
-    if(diff>=0&&diff<12){monthCA[11-diff]+=(parseFloat(d.montant_ttc)||0);}
+    if(diff>=0&&diff<NB_MOIS){monthCA[NB_MOIS-1-diff]+=(parseFloat(d.montant_ttc)||0);}
   });
   // Nb interventions = groupes réalisés par mois
   done.filter(function(g){return g.date_debut;}).forEach(function(g){
     var dt=new Date(g.date_debut);
     var diff=(now.getFullYear()-dt.getFullYear())*12+(now.getMonth()-dt.getMonth());
-    if(diff>=0&&diff<12){monthNb[11-diff]++;}
+    if(diff>=0&&diff<NB_MOIS){monthNb[NB_MOIS-1-diff]++;}
   });
 
   // Communes
