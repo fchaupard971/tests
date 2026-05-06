@@ -1027,7 +1027,7 @@ async function openDocModal(gid,cid,vid,docId){
   const today2=today();
   document.getElementById('doc-date-em').value=today2;
   document.getElementById('doc-date-ech').value='';
-  document.getElementById('doc-tva').value='0';
+  document.getElementById('doc-tva').value='8.5';
   document.getElementById('doc-type').value='devis';
   document.getElementById('doc-status').value='brouillon';
   document.getElementById('doc-mentions').value='';
@@ -1048,7 +1048,7 @@ async function openDocModal(gid,cid,vid,docId){
       document.getElementById('doc-status').value=d.statut;
       document.getElementById('doc-date-em').value=d.date_emission?d.date_emission.split('T')[0]:today2;
       document.getElementById('doc-date-ech').value=d.date_echeance?d.date_echeance.split('T')[0]:'';
-      document.getElementById('doc-tva').value=d.tva_pct||0;
+      document.getElementById('doc-tva').value=d.tva_pct!=null?d.tva_pct:8.5;
       document.getElementById('doc-num').value=d.numero||'';
       document.getElementById('doc-mentions').value=d.mentions||'';
       document.getElementById('doc-note-int').value=d.note_interne||'';
@@ -1600,7 +1600,7 @@ async function openDocSendEmail(docId,cid){
 }
 async function openDocSendWA(docId,cid){
   const{data:d}=await SB.from('documents_facturation').select('*').eq('id',docId).single();
-  if(!d)return;currentDoc.contactId=cid;currentDoc.lignes=d.lignes||[];document.getElementById('doc-num').value=d.numero||'';document.getElementById('doc-type').value=d.type_doc;document.getElementById('doc-tva').value=d.tva_pct||0;
+  if(!d)return;currentDoc.contactId=cid;currentDoc.lignes=d.lignes||[];document.getElementById('doc-num').value=d.numero||'';document.getElementById('doc-type').value=d.type_doc;document.getElementById('doc-tva').value=d.tva_pct!=null?d.tva_pct:8.5;
   sendDocWA();
 }
 async function delDoc(id){
