@@ -245,7 +245,7 @@ canvas{max-height:220px}
 
 <div id="login" class="fullscreen">
   <div class="card">
-    <div class="card-logo"><span class="ico">🚗</span><h1>CRM Auto</h1><p>Guadeloupe — Marie-Galante</p></div>
+    <div class="card-logo"><span class="ico">🚗</span><h1> GESTION XL & CIE SERVICES Auto</h1><p>Guadeloupe — Marie-Galante</p></div>
     <div class="err-box" id="login-err"></div>
     <div class="fg"><label>Identifiant</label><input id="lu" placeholder="admin" autocomplete="username"></div>
     <div class="fg"><label>Mot de passe</label><input id="lp" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
@@ -256,7 +256,7 @@ canvas{max-height:220px}
 
 <div id="app" style="display:none">
   <div id="sidebar">
-    <div class="sb-head"><h1>CRM Auto</h1><p id="nb">0 contacts</p></div>
+    <div class="sb-head"><h1> GESTION XL & CIE SERVICES Auto</h1><p id="nb">0 contacts</p></div>
     <div class="sb-nav">
       <button class="nav-btn on" id="nav-clients" onclick="switchNav('clients')">👥 Clients</button>
       <button class="nav-btn" id="nav-docs" onclick="switchNav('docs')">📄 Devis / Factures</button>
@@ -1312,7 +1312,7 @@ async function convertToFacture(){
     type_doc:'facture',numero:numFac,
     date_emission:today(),
     date_echeance:addDays(today(),30),
-    statut:'envoyé',
+    statut:'brouillon',
     lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,
     mentions:document.getElementById('doc-mentions').value||null,
     bpa:null,note_interne:null
@@ -1506,7 +1506,7 @@ async function quickConvert(docId,cid,vid,gid){
     group_id:gid,contact_id:cid,vehicule_id:vid,
     type_doc:'facture',numero:numFac,
     date_emission:today(),date_echeance:addDays(today(),30),
-    statut:'envoyé',
+    statut:'brouillon',
     lignes:d.lignes,montant_ht:d.montant_ht,tva_pct:d.tva_pct,montant_tva:d.montant_tva,montant_ttc:d.montant_ttc,
     mentions:d.mentions,bpa:null
   });
@@ -1562,74 +1562,247 @@ async function delDoc(id){
 //  STATISTIQUES
 // ══════════════════════════════════════════════════════
 let charts={};
-function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});charts={};}
+let statsCache=null;
+function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy();}catch(e){}});charts={};}
+
+const STAT_BLOCS=[
+  {id:'kpis',        label:'KPIs généraux',          def:true},
+  {id:'ca_mensuel',  label:'CA mensuel (12 mois)',    def:true},
+  {id:'actes_type',  label:'Actes par type',          def:true},
+  {id:'abonnements', label:'Abonnements véhicules',   def:true},
+  {id:'communes',    label:'Communes de réception',   def:true},
+  {id:'detail_actes',label:'Détail actes (tableau)',  def:true},
+  {id:'ca_clients',  label:'CA par client (top 10)',  def:false},
+  {id:'nb_mois',     label:'Interventions par mois',  def:false},
+];
+let activeBlocs=new Set(STAT_BLOCS.filter(function(b){return b.def;}).map(function(b){return b.id;}));
 
 async function showStats(){
   document.getElementById('t-title').textContent='Statistiques';
-  document.getElementById('t-right').innerHTML='';
-  document.getElementById('content').innerHTML='<div class="loading"><div class="spin"></div> Calcul…</div>';
+  document.getElementById('t-right').innerHTML=
+    '<button class="b bk" onclick="openStatSelector()" style="gap:5px">⚙️ Choisir les blocs</button>'
+    +'&nbsp;<button class="b" onclick="refreshStats()">↺ Actualiser</button>';
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spin"></div> Calcul...</div>';
   destroyCharts();
-  const[{data:groups},{data:actes},{data:vehs},{data:conts},{data:docs}]=await Promise.all([
-    SB.from('intervention_groups').select('*'),
-    SB.from('intervention_actes').select('*'),
-    SB.from('vehicules').select('*'),
-    SB.from('contacts').select('*'),
-    SB.from('documents_facturation').select('montant_ttc,type_doc,statut')
-  ]);
-  const gl=groups||[],al=actes||[],vl=vehs||[],cl=conts||[],dl=docs||[];
-  const totalCA=gl.filter(g=>g.statut==='done').reduce((s,g)=>s+(parseFloat(g.montant_total)||0),0);
-  const totalDone=gl.filter(g=>g.statut==='done').length;
-  const totalPlanned=gl.filter(g=>g.statut==='planned').length;
-  const nbClients=cl.filter(c=>c.statut==='client').length;
-  const caFacture=dl.filter(d=>d.type_doc==='facture'&&d.statut==='payé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+  await loadStats();
+}
+
+async function refreshStats(){
+  statsCache=null;
+  destroyCharts();
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spin"></div> Calcul...</div>';
+  await loadStats();
+}
+
+async function loadStats(){
+  if(!statsCache){
+    const r=await Promise.all([
+      SB.from('intervention_groups').select('*'),
+      SB.from('intervention_actes').select('*'),
+      SB.from('vehicules').select('*'),
+      SB.from('contacts').select('*'),
+      SB.from('documents_facturation').select('montant_ttc,type_doc,statut'),
+      SB.from('intervention_groups').select('montant_total,statut,vehicules(contact_id,contacts(prenom,nom))')
+    ]);
+    statsCache={
+      gl:r[0].data||[],al:r[1].data||[],vl:r[2].data||[],
+      cl:r[3].data||[],dl:r[4].data||[],glc:r[5].data||[]
+    };
+  }
+  renderStats();
+}
+
+function openStatSelector(){
+  var ex=document.getElementById('stat-sel-panel');
+  if(ex){ex.remove();return;}
+  var p=document.createElement('div');
+  p.id='stat-sel-panel';
+  p.style.cssText='position:fixed;top:50px;right:16px;background:var(--bg);border:0.5px solid var(--bd);border-radius:var(--rl);padding:16px;z-index:400;min-width:260px;box-shadow:0 8px 32px rgba(0,0,0,.18)';
+  var rows=STAT_BLOCS.map(function(b){
+    var chk=activeBlocs.has(b.id)?'checked':'';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--bd2)">'
+      +'<input type="checkbox" id="sb-'+b.id+'" '+chk+' style="width:14px;height:14px;accent-color:var(--pu);cursor:pointer" data-bid="'+b.id+'" onchange="toggleBloc(this.dataset.bid,this.checked)">'
+      +'<label for="sb-'+b.id+'" style="font-size:12px;color:var(--tx);cursor:pointer">'+b.label+'</label></div>';
+  }).join('');
+  p.innerHTML='<div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:10px">Blocs à afficher</div>'
+    +rows
+    +'<div style="display:flex;gap:6px;margin-top:12px">'
+    +'<button class="b" style="flex:1" onclick="selectAll(true)">Tout cocher</button>'
+    +'<button class="b" style="flex:1" onclick="selectAll(false)">Tout décocher</button>'
+    +'<button class="b bk" onclick="closeStatSelector()">\u2715</button>'
+    +'</div>';
+  document.body.appendChild(p);
+}
+
+function closeStatSelector(){var p=document.getElementById("stat-sel-panel");if(p)p.remove();}
+function toggleBloc(id,v){
+  if(v)activeBlocs.add(id);else activeBlocs.delete(id);
+  destroyCharts();renderStats();
+}
+
+function selectAll(v){
+  STAT_BLOCS.forEach(function(b){
+    if(v)activeBlocs.add(b.id);else activeBlocs.delete(b.id);
+    var el=document.getElementById('sb-'+b.id);if(el)el.checked=v;
+  });
+  destroyCharts();renderStats();
+}
+
+function renderStats(){
+  var d=statsCache;
+  if(!d){return;}
+  var gl=d.gl,al=d.al,vl=d.vl,cl=d.cl,dl=d.dl,glc=d.glc;
+  var C=['#534AB7','#0F6E56','#185FA5','#854F0B','#A32D2D','#3B6D11','#72243E','#444441','#634890','#0C6E8A'];
+  var done=gl.filter(function(g){return g.statut==='done';});
+  var planned=gl.filter(function(g){return g.statut==='planned';});
+  var totalCA=done.reduce(function(s,g){return s+(parseFloat(g.montant_total)||0);},0);
+  var nbClients=cl.filter(function(c){return c.statut==='client';}).length;
+  var caPayee=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='payé';}).reduce(function(s,d){return s+(parseFloat(d.montant_ttc)||0);},0);
+
   // Par type d'acte
-  const byType={};al.forEach(a=>{byType[a.type]=(byType[a.type]||0)+1;});
-  const typeSorted=Object.entries(byType).sort((a,b)=>b[1]-a[1]);
+  var byType={};
+  al.forEach(function(a){byType[a.type]=(byType[a.type]||0)+1;});
+  var typeSorted=Object.entries(byType).sort(function(a,b){return b[1]-a[1];});
+
   // Par abonnement
-  const byAbo={acte:0,SUV:0,Citadine:0,'Premium 1':0,'Premium 2':0,'Non défini':0};
-  vl.forEach(v=>{if(!v.type_prestation)byAbo['Non défini']++;else if(v.type_prestation==='acte')byAbo['acte']++;else if(v.abonnement)byAbo[v.abonnement]=(byAbo[v.abonnement]||0)+1;});
-  // CA mensuel
-  const now=new Date();const monthlyCA=Array(12).fill(0);const monthLabels=[];
-  for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);monthLabels.push(d.toLocaleString('fr-FR',{month:'short',year:'2-digit'}));}
-  gl.filter(g=>g.statut==='done'&&g.date_debut).forEach(g=>{const d=new Date(g.date_debut);const diff=(now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());if(diff>=0&&diff<12)monthlyCA[11-diff]+=(parseFloat(g.montant_total)||0);});
+  var byAbo={'A l acte':0,'SUV':0,'Citadine':0,'Premium 1':0,'Premium 2':0,'Non defini':0};
+  vl.forEach(function(v){
+    if(!v.type_prestation)byAbo['Non defini']++;
+    else if(v.type_prestation==='acte')byAbo['A l acte']++;
+    else if(v.abonnement)byAbo[v.abonnement]=(byAbo[v.abonnement]||0)+1;
+  });
+
+  // CA mensuel (12 mois)
+  var now=new Date();
+  var monthCA=[];var monthNb=[];var monthLbl=[];
+  for(var mi=11;mi>=0;mi--){
+    var dt=new Date(now.getFullYear(),now.getMonth()-mi,1);
+    monthLbl.push(dt.toLocaleString('fr-FR',{month:'short',year:'2-digit'}));
+    monthCA.push(0);monthNb.push(0);
+  }
+  done.filter(function(g){return g.date_debut;}).forEach(function(g){
+    var dt=new Date(g.date_debut);
+    var diff=(now.getFullYear()-dt.getFullYear())*12+(now.getMonth()-dt.getMonth());
+    if(diff>=0&&diff<12){monthCA[11-diff]+=(parseFloat(g.montant_total)||0);monthNb[11-diff]++;}
+  });
+
   // Communes
-  const byCommune={};gl.filter(g=>g.commune).forEach(g=>{byCommune[g.commune]=(byCommune[g.commune]||0)+1;});
-  const communeSorted=Object.entries(byCommune).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const COLORS=['#534AB7','#0F6E56','#185FA5','#854F0B','#A32D2D','#3B6D11','#72243E','#444441','#634890','#0C6E8A'];
-  document.getElementById('content').innerHTML=`
-    <div class="stats-grid">
-      <div class="stat-card"><div class="l">CA Total réalisé</div><div class="v" style="color:var(--bt)">${Number(totalCA).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</div><div class="sub">${totalDone} interventions réalisées</div></div>
-      <div class="stat-card"><div class="l">Facturé & payé</div><div class="v" style="color:var(--gt)">${Number(caFacture).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</div><div class="sub">${dl.filter(d=>d.statut==='payé').length} factures payées</div></div>
-      <div class="stat-card"><div class="l">Programmées</div><div class="v" style="color:var(--put)">${totalPlanned}</div><div class="sub">en attente</div></div>
-      <div class="stat-card"><div class="l">Clients</div><div class="v" style="color:var(--gt)">${nbClients}</div><div class="sub">${cl.length} contacts total</div></div>
-    </div>
-    <div class="charts-grid">
-      <div class="chart-card"><h4>📈 CA mensuel (12 mois)</h4><canvas id="ch-ca"></canvas></div>
-      <div class="chart-card"><h4>🔧 Actes par type</h4><canvas id="ch-type"></canvas></div>
-    </div>
-    <div class="charts-grid">
-      <div class="chart-card"><h4>💳 Répartition abonnements</h4><canvas id="ch-abo"></canvas></div>
-      <div class="chart-card"><h4>📍 Communes de réception</h4>
-        <table class="stat-table">
-          <thead><tr><th>Commune</th><th>Véhicules</th><th>%</th></tr></thead>
-          <tbody>${communeSorted.length?communeSorted.map(([com,nb])=>{const pct=Math.round(nb/Math.max(vl.length,1)*100);return`<tr><td>📍 ${com}</td><td style="font-weight:500">${nb}</td><td><div class="stat-bar" style="width:${pct}%;background:var(--gt)"></div><span style="font-size:10px;color:var(--tx2)">${pct}%</span></td></tr>`;}).join(''):'<tr><td colspan="3" style="color:var(--tx2);text-align:center;padding:16px">Aucune donnée</td></tr>'}</tbody>
-        </table>
-      </div>
-    </div>
-    <div style="background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--rl);padding:16px;margin-bottom:16px">
-      <h4 style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:14px">📊 Détail par type d'acte</h4>
-      <table class="stat-table">
-        <thead><tr><th>Type</th><th>Nb actes</th><th>Part</th></tr></thead>
-        <tbody>${typeSorted.map(([type,nb])=>{const pct=Math.round(nb/Math.max(al.length,1)*100);return`<tr><td>${iIco(type)} ${type}</td><td style="font-weight:500">${nb}</td><td style="width:200px"><div class="stat-bar" style="width:${pct}%"></div><span style="font-size:10px;color:var(--tx2)">${pct}%</span></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:var(--tx2);text-align:center;padding:16px">Aucune donnée</td></tr>'}</tbody>
-      </table>
-    </div>`;
-  const ctxCA=document.getElementById('ch-ca');
-  if(ctxCA)charts.ca=new Chart(ctxCA,{type:'line',data:{labels:monthLabels,datasets:[{label:'CA (€)',data:monthlyCA,borderColor:COLORS[0],backgroundColor:'rgba(83,74,183,.1)',tension:.3,fill:true,pointRadius:3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}),font:{size:10}}}}}});
-  const ctxType=document.getElementById('ch-type');
-  if(ctxType&&typeSorted.length)charts.type=new Chart(ctxType,{type:'doughnut',data:{labels:typeSorted.map(([k])=>k),datasets:[{data:typeSorted.map(([,v])=>v),backgroundColor:COLORS,borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{font:{size:10},padding:10}}}}});
-  const aboData=Object.entries(byAbo).filter(([,v])=>v>0);
-  const ctxAbo=document.getElementById('ch-abo');
-  if(ctxAbo&&aboData.length)charts.abo=new Chart(ctxAbo,{type:'bar',data:{labels:aboData.map(([k])=>k==='acte'?"À l'acte":k),datasets:[{label:'Véhicules',data:aboData.map(([,v])=>v),backgroundColor:COLORS,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},stepSize:1}}}}});
+  var byCommune={};
+  gl.filter(function(g){return g.commune;}).forEach(function(g){byCommune[g.commune]=(byCommune[g.commune]||0)+1;});
+  var communeList=Object.entries(byCommune).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+
+  // CA par client
+  var byClient={};
+  glc.filter(function(g){return g.statut==='done'&&g.vehicules&&g.vehicules.contacts;}).forEach(function(g){
+    var c=g.vehicules.contacts;
+    var name=c.prenom+' '+c.nom;
+    byClient[name]=(byClient[name]||0)+(parseFloat(g.montant_total)||0);
+  });
+  var clientList=Object.entries(byClient).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
+
+  // ── Construire le HTML ─────────────────────────────────────────
+  var html='';
+
+  if(activeBlocs.has('kpis')){
+    html+='<div class="stats-grid">'
+      +'<div class="stat-card"><div class="l">CA Total realise</div><div class="v" style="color:var(--bt)">'+Number(totalCA).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</div><div class="sub">'+done.length+' interventions</div></div>'
+      +'<div class="stat-card"><div class="l">Facture &amp; paye</div><div class="v" style="color:var(--gt)">'+Number(caPayee).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</div><div class="sub">'+dl.filter(function(d){return d.statut==='paye';}).length+' factures</div></div>'
+      +'<div class="stat-card"><div class="l">Programmees</div><div class="v" style="color:var(--put)">'+planned.length+'</div><div class="sub">en attente</div></div>'
+      +'<div class="stat-card"><div class="l">Clients</div><div class="v" style="color:var(--gt)">'+nbClients+'</div><div class="sub">'+cl.length+' contacts total</div></div>'
+      +'</div>';
+  }
+
+  if(activeBlocs.has('ca_mensuel')||activeBlocs.has('actes_type')){
+    html+='<div class="charts-grid">';
+    html+=activeBlocs.has('ca_mensuel')?'<div class="chart-card"><h4>CA mensuel (12 mois)</h4><canvas id="ch-ca"></canvas></div>':'<div></div>';
+    html+=activeBlocs.has('actes_type')&&typeSorted.length?'<div class="chart-card"><h4>Actes par type</h4><canvas id="ch-type"></canvas></div>':'<div></div>';
+    html+='</div>';
+  }
+
+  if(activeBlocs.has('abonnements')||activeBlocs.has('communes')){
+    html+='<div class="charts-grid">';
+    html+=activeBlocs.has('abonnements')?'<div class="chart-card"><h4>Repartition abonnements</h4><canvas id="ch-abo"></canvas></div>':'<div></div>';
+    if(activeBlocs.has('communes')){
+      var comRows=communeList.length
+        ?communeList.map(function(e){var pct=Math.round(e[1]/Math.max(gl.length,1)*100);return '<tr><td>'+e[0]+'</td><td style="font-weight:500">'+e[1]+'</td><td><div class="stat-bar" style="width:'+pct+'%;background:var(--gt)"></div><span style="font-size:10px;color:var(--tx2)">'+pct+'%</span></td></tr>';}).join('')
+        :'<tr><td colspan="3" style="color:var(--tx2);text-align:center;padding:16px">Aucune donnee</td></tr>';
+      html+='<div class="chart-card"><h4>Communes de reception</h4>'
+        +'<table class="stat-table"><thead><tr><th>Commune</th><th>Nb</th><th>%</th></tr></thead>'
+        +'<tbody>'+comRows+'</tbody></table></div>';
+    } else {html+='<div></div>';}
+    html+='</div>';
+  }
+
+  if(activeBlocs.has('nb_mois')){
+    html+='<div class="chart-card" style="margin-bottom:16px"><h4>Interventions par mois</h4><canvas id="ch-nb"></canvas></div>';
+  }
+
+  if(activeBlocs.has('ca_clients')&&clientList.length){
+    var clientRows=clientList.map(function(e){
+      var pct=Math.round(e[1]/Math.max(totalCA,1)*100);
+      return '<tr><td style="font-weight:500">'+e[0]+'</td>'
+        +'<td style="color:var(--bt);font-weight:600">'+Number(e[1]).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td>'
+        +'<td><div class="stat-bar" style="width:'+pct+'%"></div><span style="font-size:10px;color:var(--tx2)">'+pct+'%</span></td></tr>';
+    }).join('');
+    html+='<div class="chart-card" style="margin-bottom:16px"><h4>CA par client - Top 10</h4>'
+      +'<table class="stat-table"><thead><tr><th>Client</th><th>CA</th><th>Part</th></tr></thead>'
+      +'<tbody>'+clientRows+'</tbody></table></div>';
+  }
+
+  if(activeBlocs.has('detail_actes')){
+    var actRows=typeSorted.length
+      ?typeSorted.map(function(e){
+        var pct=Math.round(e[1]/Math.max(al.length,1)*100);
+        return '<tr><td>'+iIco(e[0])+' '+e[0]+'</td><td style="font-weight:500">'+e[1]+'</td>'
+          +'<td><div class="stat-bar" style="width:'+pct+'%"></div><span style="font-size:10px;color:var(--tx2)">'+pct+'%</span></td></tr>';
+      }).join('')
+      :'<tr><td colspan="3" style="color:var(--tx2);text-align:center;padding:16px">Aucune donnee</td></tr>';
+    html+='<div style="background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--rl);padding:16px;margin-bottom:16px">'
+      +'<h4 style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:14px">Detail par type d acte</h4>'
+      +'<table class="stat-table"><thead><tr><th>Type</th><th>Nb actes</th><th>Part</th></tr></thead>'
+      +'<tbody>'+actRows+'</tbody></table></div>';
+  }
+
+  if(!activeBlocs.size){
+    html='<div class="ni">Aucun bloc selectionne. Cliquez sur Choisir les blocs.</div>';
+  }
+
+  document.getElementById('content').innerHTML=html;
+
+  // ── Charts ────────────────────────────────────────────────────
+  if(activeBlocs.has('ca_mensuel')){
+    var ctx=document.getElementById('ch-ca');
+    if(ctx)charts.ca=new Chart(ctx,{
+      type:'line',
+      data:{labels:monthLbl,datasets:[{label:'CA',data:monthCA,borderColor:C[0],backgroundColor:'rgba(83,74,183,.1)',tension:.3,fill:true,pointRadius:3}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{font:{size:10}}}}}
+    });
+  }
+  if(activeBlocs.has('actes_type')&&typeSorted.length){
+    var ctx2=document.getElementById('ch-type');
+    if(ctx2)charts.type=new Chart(ctx2,{
+      type:'doughnut',
+      data:{labels:typeSorted.map(function(e){return e[0];}),datasets:[{data:typeSorted.map(function(e){return e[1];}),backgroundColor:C,borderWidth:1}]},
+      options:{responsive:true,plugins:{legend:{position:'right',labels:{font:{size:10},padding:10}}}}
+    });
+  }
+  if(activeBlocs.has('abonnements')){
+    var aboData=Object.entries(byAbo).filter(function(e){return e[1]>0;});
+    var ctx3=document.getElementById('ch-abo');
+    if(ctx3&&aboData.length)charts.abo=new Chart(ctx3,{
+      type:'bar',
+      data:{labels:aboData.map(function(e){return e[0];}),datasets:[{label:'Vehicules',data:aboData.map(function(e){return e[1];}),backgroundColor:C,borderRadius:4}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},stepSize:1}}}}
+    });
+  }
+  if(activeBlocs.has('nb_mois')){
+    var ctx4=document.getElementById('ch-nb');
+    if(ctx4)charts.nb=new Chart(ctx4,{
+      type:'bar',
+      data:{labels:monthLbl,datasets:[{label:'Interventions',data:monthNb,backgroundColor:C[2],borderRadius:4}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},stepSize:1}}}}
+    });
+  }
 }
 
 // ── ADMIN ──────────────────────────────────────────────
