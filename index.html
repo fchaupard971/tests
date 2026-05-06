@@ -709,7 +709,7 @@ async function showInterventions(cid,vid){
   document.getElementById('t-right').innerHTML=`<button class="b bk" onclick="nav('${cid}','vehicles','${vid}')">← Véhicules</button>${ab}`;
   document.getElementById('content').innerHTML='<div class="loading"><div class="spin"></div></div>';
 
-  const{data:groups}=await SB.from('intervention_groups').select('*, intervention_actes(*), rappels_v2(*), documents_facturation(id,type_doc,numero,statut,montant_ttc)').eq('vehicule_id',vid).order('date_debut',{ascending:false});
+  const{data:groups}=await SB.from('intervention_groups').select('*, intervention_actes(*), rappels_v2(*), documents_facturation(id,type_doc,numero,statut,montant_ttc,contact_id,vehicule_id)').eq('vehicule_id',vid).order('date_debut',{ascending:false});
   const list=groups||[];
   const done=list.filter(g=>g.statut==='done'),planned=list.filter(g=>g.statut==='planned');
   const totalCA=done.reduce((s,g)=>s+(parseFloat(g.montant_total)||0),0);
@@ -726,7 +726,16 @@ async function showInterventions(cid,vid){
       else if(a.type==='Gardiennage')detail=`${a.gard_form||''} × ${a.gard_qty||1}`;
       return`<div class="acte-row"><span class="acte-ico">${iIco(a.type)}</span><div style="flex:1"><div class="acte-name">${a.type}</div>${detail?`<div class="acte-detail">${detail}</div>`:''}</div><div class="acte-price">${fm(a.montant)}</div></div>`;
     }).join('');
-    const docsHTML=docs.map(d=>{const bg=STATUT_BG[d.statut]||'#f5f5f4';const col=STATUT_COLORS[d.statut]||'#78716c';return`<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${bg};color:${col};font-weight:500;border:0.5px solid ${col}33">${d.type_doc==='devis'?'📋':'🧾'} ${d.numero||d.type_doc}</span>`;}).join(' ');
+    const docsHTML=docs.map(d=>{
+      const bg=STATUT_BG[d.statut]||'#f5f5f4';
+      const col=STATUT_COLORS[d.statut]||'#78716c';
+      const ico=d.type_doc==='devis'?'📋':'🧾';
+      const label=`${ico} ${d.numero||d.type_doc}`;
+      const statusLabel=STATUT_LABELS[d.statut]||d.statut;
+      const docCid=d.contact_id||cid;
+      const docVid=d.vehicule_id||vid;
+      return`<button onclick="openDocModalById('${d.id}','${docCid}','${docVid}','${g.id}')" title="Ouvrir ${label} — ${statusLabel}" style="font-size:10px;padding:2px 9px;border-radius:20px;background:${bg};color:${col};font-weight:500;border:0.5px solid ${col}55;cursor:pointer;font-family:var(--font);transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${label} <span style="opacity:.65">(${statusLabel})</span></button>`;
+    }).join(' ');
     const editBtn=can('interventions')?`<button class="b" onclick="openIGM('${g.vehicule_id}','${g.vehicule_id}','${g.id}',true)">Modifier</button>`:'';
     const delBtn=can('delete')?`<button class="b d" onclick="delIG('${g.id}','${vid}')">Supprimer</button>`:'';
     const hasDocs=docs&&docs.length>0;
