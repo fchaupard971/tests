@@ -426,7 +426,7 @@ canvas{max-height:220px}
         <div class="fg"><label>Date d'échéance</label><input id="doc-date-ech" type="date" onchange="renderDocPreviewSync()"></div>
       </div>
       <div class="fr">
-        <div class="fg"><label>TVA %</label><input id="doc-tva" type="number" value="0" min="0" max="100" step="0.1" oninput="recalcDoc()"></div>
+        <div class="fg"><label>TVA %</label><input id="doc-tva" type="number" value="8.5" min="0" max="100" step="0.1" oninput="recalcDoc()"></div>
         <div class="fg"><label>Numéro</label><input id="doc-num" placeholder="auto" onchange="renderDocPreviewSync()"></div>
       </div>
       <!-- Lignes -->
@@ -439,9 +439,9 @@ canvas{max-height:220px}
       <div class="fg"><label>Bon pour accord (texte imprimé sur le document)</label>
         <select id="doc-bpa" onchange="renderDocPreviewSync()" style="font-size:12px;padding:8px 10px;border:0.5px solid var(--bd);border-radius:var(--r);background:var(--bg2);color:var(--tx);font-family:var(--font);outline:none;width:100%">
           <option value="">— Ne pas afficher —</option>
-          <option value="Lu et approuvé.<br>Date : _______________<br>Signature :">Bon pour accord — Lu et approuvé</option>
-          <option value="et exécution des travaux. Date : _______________Signature du client :">Bon pour accord et exécution des travaux</option>
-          <option value="Devis accepté — Bon pour commande. <br>Date : _______________<br>Signature :">Devis accepté — Bon pour commande</option>
+          <option value="Lu et approuvé.<br>Date :<br>Signature :">Bon pour accord — Lu et approuvé</option>
+          <option value="et exécution des travaux.<br>Date :<br>Signature du client :">Bon pour accord et exécution des travaux</option>
+          <option value="Devis accepté — Bon pour commande.<br>Date :<br>Signature :">Devis accepté — Bon pour commande</option>
           <option value="custom">✏️ Texte personnalisé…</option>
         </select>
       </div>
