@@ -594,7 +594,7 @@ async function showClient(id){
 
   // Charger les documents liés à ce contact
   const{data:docs}=await SB.from('documents_facturation')
-    .select('id,type_doc,numero,statut,montant_ttc,date_emission,date_echeance,vehicule_id,group_id')
+    .select('id,type_doc,numero,statut,montant_ttc,date_emission,date_echeance,vehicule_id,group_id,source_devis_id')
     .eq('contact_id',id)
     .order('date_emission',{ascending:false});
   const allDocs=docs||[];
@@ -607,12 +607,21 @@ async function showClient(id){
     const bg=STATUT_BG[d.statut]||'#f5f5f4';
     const col=STATUT_COLORS[d.statut]||'#78716c';
     const ico=d.type_doc==='devis'?'📋':'🧾';
+    // Lien vers la facture liée (si devis converti)
+    const linkedFac=d.type_doc==='devis'?allDocs.find(x=>x.source_devis_id===d.id):null;
+    const linkedDev=d.type_doc==='facture'&&d.source_devis_id?allDocs.find(x=>x.id===d.source_devis_id):null;
+    const linkBtn=linkedFac
+      ?`<button onclick="openDocModalById('${linkedFac.id}','${id}','${linkedFac.vehicule_id||''}','${linkedFac.group_id||''}')" style="font-size:10px;padding:2px 8px;border-radius:20px;background:var(--pul);border:0.5px solid var(--pu);color:var(--put);cursor:pointer;font-family:var(--font);font-weight:500;white-space:nowrap">🧾 ${linkedFac.numero}</button>`
+      :linkedDev
+      ?`<button onclick="openDocModalById('${linkedDev.id}','${id}','${linkedDev.vehicule_id||''}','${linkedDev.group_id||''}')" style="font-size:10px;padding:2px 8px;border-radius:20px;background:var(--ol);border:0.5px solid var(--oc);color:var(--ot);cursor:pointer;font-family:var(--font);font-weight:500;white-space:nowrap">📋 ${linkedDev.numero}</button>`
+      :'';
     return`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:0.5px solid var(--bd2);flex-wrap:wrap">
-      <button onclick="openDocModalById('${d.id}','${id}','${d.vehicule_id||''}','${d.group_id||''}')" style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-family:var(--font);text-align:left;padding:0;flex:1;min-width:0">
+      <button onclick="openDocModalById('${d.id}','${id}','${d.vehicule_id||''}','${d.group_id||''}')" style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-family:var(--font);text-align:left;padding:0;min-width:0">
         <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${bg};color:${col};font-weight:500;white-space:nowrap">${ico} ${d.numero||'—'}</span>
         <span style="font-size:11px;color:var(--tx2);white-space:nowrap">${fd(d.date_emission)}</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${bg};color:${col};opacity:.8">${STATUT_LABELS[d.statut]||d.statut}</span>
       </button>
+      ${linkBtn?`<span style="font-size:10px;color:var(--tx2)">→</span>${linkBtn}`:''}
       <span style="font-size:13px;font-weight:600;color:var(--bt);white-space:nowrap;margin-left:auto">${fm(d.montant_ttc)}</span>
     </div>`;
   };
@@ -756,7 +765,7 @@ async function showInterventions(cid,vid){
   document.getElementById('t-right').innerHTML=`<button class="b bk" onclick="nav('${cid}','vehicles','${vid}')">← Véhicules</button>${ab}`;
   document.getElementById('content').innerHTML='<div class="loading"><div class="spin"></div></div>';
 
-  const{data:groups}=await SB.from('intervention_groups').select('*, intervention_actes(*), rappels_v2(*), documents_facturation(id,type_doc,numero,statut,montant_ttc,contact_id,vehicule_id)').eq('vehicule_id',vid).order('date_debut',{ascending:false});
+  const{data:groups}=await SB.from('intervention_groups').select('*, intervention_actes(*), rappels_v2(*), documents_facturation(id,type_doc,numero,statut,montant_ttc,contact_id,vehicule_id,source_devis_id)').eq('vehicule_id',vid).order('date_debut',{ascending:false});
   const list=groups||[];
   const done=list.filter(g=>g.statut==='done'),planned=list.filter(g=>g.statut==='planned');
   const totalCA=done.reduce((s,g)=>s+(parseFloat(g.montant_total)||0),0);
@@ -777,11 +786,19 @@ async function showInterventions(cid,vid){
       const bg=STATUT_BG[d.statut]||'#f5f5f4';
       const col=STATUT_COLORS[d.statut]||'#78716c';
       const ico=d.type_doc==='devis'?'📋':'🧾';
-      const label=`${ico} ${d.numero||d.type_doc}`;
+      const label=ico+' '+(d.numero||d.type_doc);
       const statusLabel=STATUT_LABELS[d.statut]||d.statut;
       const docCid=d.contact_id||cid;
       const docVid=d.vehicule_id||vid;
-      return`<button onclick="openDocModalById('${d.id}','${docCid}','${docVid}','${g.id}')" title="Ouvrir ${label} — ${statusLabel}" style="font-size:10px;padding:2px 9px;border-radius:20px;background:${bg};color:${col};font-weight:500;border:0.5px solid ${col}55;cursor:pointer;font-family:var(--font);transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${label} <span style="opacity:.65">(${statusLabel})</span></button>`;
+      // Lien vers la facture liée (si devis) ou le devis source (si facture)
+      const linkedFac=d.type_doc==='devis'?docs.find(x=>x.source_devis_id===d.id):null;
+      const linkedDev=d.type_doc==='facture'&&d.source_devis_id?docs.find(x=>x.id===d.source_devis_id):null;
+      const linkPart=linkedFac
+        ?` <span style="opacity:.5">→</span> <span style="font-size:10px;padding:1px 6px;border-radius:20px;background:var(--pul);color:var(--put);font-weight:500">🧾 ${linkedFac.numero}</span>`
+        :linkedDev
+        ?` <span style="opacity:.5">←</span> <span style="font-size:10px;padding:1px 6px;border-radius:20px;background:var(--ol);color:var(--ot);font-weight:500">📋 ${linkedDev.numero}</span>`
+        :'';
+      return`<button onclick="openDocModalById('${d.id}','${docCid}','${docVid}','${g.id}')" title="Ouvrir ${label} — ${statusLabel}" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 9px;border-radius:20px;background:${bg};color:${col};font-weight:500;border:0.5px solid ${col}55;cursor:pointer;font-family:var(--font);transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${label} <span style="opacity:.65">(${statusLabel})</span>${linkPart}</button>`;
     }).join(' ');
     const editBtn=can('interventions')?`<button class="b" onclick="openIGM('${g.vehicule_id}','${g.vehicule_id}','${g.id}',true)">Modifier</button>`:'';
     const delBtn=can('delete')?`<button class="b d" onclick="delIG('${g.id}','${vid}')">Supprimer</button>`:'';
@@ -1359,8 +1376,21 @@ async function saveDoc(){
   const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
   const data={group_id:currentDoc.groupId,contact_id:currentDoc.contactId,vehicule_id:currentDoc.vehiculeId,type_doc:document.getElementById('doc-type').value,numero:document.getElementById('doc-num').value,date_emission:document.getElementById('doc-date-em').value||null,date_echeance:document.getElementById('doc-date-ech').value||null,statut:document.getElementById('doc-status').value,lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,mentions:document.getElementById('doc-mentions').value||null,note_interne:document.getElementById('doc-note-int').value||null,bpa:getBPA()||null};
   let error;
-  if(currentDoc.docId){({error}=await SB.from('documents_facturation').update(data).eq('id',currentDoc.docId));}
-  else{({error}=await SB.from('documents_facturation').insert(data));}
+  if(currentDoc.docId){
+    ({error}=await SB.from('documents_facturation').update(data).eq('id',currentDoc.docId));
+  } else {
+    // Vérification anti-doublon : si un doc avec ce numéro existe déjà pour ce groupe
+    const{data:existing}=await SB.from('documents_facturation').select('id').eq('group_id',currentDoc.groupId).eq('numero',data.numero).maybeSingle();
+    if(existing){
+      // Mettre à jour au lieu d'insérer
+      currentDoc.docId=existing.id;
+      ({error}=await SB.from('documents_facturation').update(data).eq('id',existing.id));
+    } else {
+      const{data:inserted,error:ie}=await SB.from('documents_facturation').insert(data).select().single();
+      error=ie;
+      if(!ie&&inserted){currentDoc.docId=inserted.id;} // ← stocke l'ID pour éviter les doublons
+    }
+  }
   setBtn('save-doc-btn',false,'💾 Enregistrer');
   if(error){toast('Erreur : '+error.message,'ko');return;}
   toast('Document sauvegardé ✓','ok');
