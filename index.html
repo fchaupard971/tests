@@ -411,6 +411,7 @@ canvas{max-height:220px}
         <h3 id="doc-modal-title">Nouveau devis</h3>
         <span id="doc-type-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600"></span>
         <span id="doc-statut-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500"></span>
+        <span id="doc-source-link" style="display:none;align-items:center;gap:6px"></span>
       </div>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
         <button class="b" id="btn-convert-facture" onclick="convertToFacture()" style="display:none">🧾 Convertir en facture</button>
@@ -1108,6 +1109,8 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   document.getElementById('doc-date-ech').value='';
   document.getElementById('doc-tva').value=docId?'8.5':(tvaPct!=null?tvaPct:(document.getElementById('ig-tva')?.value||'8.5'));
   document.getElementById('doc-type').value='devis';
+  // Nouveau document = type figé à "Devis" (la conversion se fait via bouton)
+  document.getElementById('doc-type').disabled=false;
   document.getElementById('doc-status').value='brouillon';
   document.getElementById('doc-mentions').value='';
   document.getElementById('doc-note-int').value='';
@@ -1121,9 +1124,11 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   currentDoc.statut='brouillon';
   // Load existing doc if editing
   if(docId){
-    const{data:d}=await SB.from('documents_facturation').select('*').eq('id',docId).single();
+    const{data:d}=await SB.from('documents_facturation').select('*,source_facture:documents_facturation!source_devis_id(id,numero,statut,type_doc)').eq('id',docId).single();
     if(d){
       document.getElementById('doc-type').value=d.type_doc;
+      // Verrouiller le type (devis ne peut pas devenir facture manuellement)
+      document.getElementById('doc-type').disabled=true;
       document.getElementById('doc-status').value=d.statut;
       document.getElementById('doc-date-em').value=d.date_emission?d.date_emission.split('T')[0]:today2;
       document.getElementById('doc-date-ech').value=d.date_echeance?d.date_echeance.split('T')[0]:'';
@@ -1141,7 +1146,7 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
         if(savedBpa&&!opts.includes(savedBpa)){bpaEl.value='custom';document.getElementById('doc-bpa-custom').value=savedBpa;document.getElementById('bpa-custom-wrap').style.display='flex';}
         else{bpaEl.value=savedBpa;}
       }
-      currentDoc.lignes=d.lignes||[];
+      currentDoc.lignes=d.lignes||[];currentDoc.sourceDevisId=d.source_devis_id||null;currentDoc.sourceFacture=d.source_facture||null;
     }
   } else {
     // Pre-fill lines from actes
@@ -1406,6 +1411,20 @@ function updateDocBadges(){
   const pb=document.getElementById('btn-marquer-paye');
   if(tb){tb.textContent=type==='facture'?'🧾 Facture':'📋 Devis';tb.style.background=type==='facture'?'#EEEDFE':'#FEF3E2';tb.style.color=type==='facture'?'#3C3489':'#92400E';}
   if(sb){sb.textContent=STATUT_LABELS[statut]||statut;sb.style.background=STATUT_BG[statut]||'#f5f5f4';sb.style.color=STATUT_COLORS[statut]||'#78716c';}
+  // Lien devis↔facture bidirectionnel
+  var linkEl=document.getElementById('doc-source-link');
+  if(linkEl){
+    if(type==='facture'&&currentDoc.sourceDevisId){
+      linkEl.innerHTML='<span style="font-size:11px;color:var(--tx2)">Depuis :</span>&nbsp;<button onclick="openDocModalById(\''+currentDoc.sourceDevisId+'\',\''+currentDoc.contactId+'\',\''+currentDoc.vehiculeId+'\',\''+currentDoc.groupId+'\')" style="background:var(--ol);border:0.5px solid var(--oc);color:var(--ot);border-radius:20px;padding:2px 9px;font-size:10px;cursor:pointer;font-weight:500;font-family:var(--font)">📋 Devis source</button>';
+      linkEl.style.display='flex';
+    } else if(type==='devis'&&statut==='accepté'&&currentDoc.docId){
+      SB.from('documents_facturation').select('id,numero,statut').eq('source_devis_id',currentDoc.docId).maybeSingle().then(function(res){
+        var fac=res.data;var el=document.getElementById('doc-source-link');if(!el)return;
+        if(fac){el.innerHTML='<span style="font-size:11px;color:var(--tx2)">Facture générée :</span>&nbsp;<button onclick="openDocModalById(\''+fac.id+'\',\''+currentDoc.contactId+'\',\''+currentDoc.vehiculeId+'\',\''+currentDoc.groupId+'\')" style="background:var(--pul);border:0.5px solid var(--pu);color:var(--put);border-radius:20px;padding:2px 9px;font-size:10px;cursor:pointer;font-weight:500;font-family:var(--font)">🧾 '+fac.numero+'</button>';el.style.display='flex';}
+        else{el.innerHTML='';el.style.display='none';}
+      });
+    } else {linkEl.innerHTML='';linkEl.style.display='none';}
+  }
   // Afficher "Convertir en facture" si c'est un devis accepté sauvegardé ET sans facture liée
   const checkNoFacture=async()=>{
     if(type==='devis'&&statut==='accepté'&&currentDoc.docId&&currentDoc.groupId){
@@ -1447,7 +1466,8 @@ async function convertToFacture(){
     statut:'brouillon',
     lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,
     mentions:document.getElementById('doc-mentions').value||null,
-    bpa:null,note_interne:null
+    bpa:null,note_interne:null,
+    source_devis_id:currentDoc.docId
   }).select().single();
   setBtn('btn-convert-facture',false,'🧾 Convertir en facture');
   if(error){toast('Erreur : '+error.message,'ko');return;}
@@ -1640,7 +1660,7 @@ async function quickConvert(docId,cid,vid,gid){
     date_emission:today(),date_echeance:addDays(today(),30),
     statut:'brouillon',
     lignes:d.lignes,montant_ht:d.montant_ht,tva_pct:d.tva_pct,montant_tva:d.montant_tva,montant_ttc:d.montant_ttc,
-    mentions:d.mentions,bpa:null
+    mentions:d.mentions,bpa:null,source_devis_id:docId
   });
   if(error){toast('Erreur : '+error.message,'ko');return;}
   toast('Facture '+numFac+' créée ✓','ok');
