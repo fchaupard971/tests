@@ -1666,20 +1666,31 @@ async function quickConvertFromGroup(gid,cid,vid){
 }
 
 // Pipeline stats → vue docs filtrée
-async function showDocsByStatut(ids,statut,typeDoc){
-  // Basculer sur l'onglet Devis/Factures
-  switchNav('docs');
-  await showAllDocs(true);
-  // Attendre que les données soient chargées puis pré-remplir les filtres
+async function showDocsByStatut(typeDoc,statut){
+  // 1. Charger les données si pas encore fait
+  if(!allDocsCache.length){
+    const{data:docs}=await SB.from('documents_facturation').select('*,contacts(prenom,nom),vehicules(marque,modele,plaque)').order('created_at',{ascending:false});
+    allDocsCache=docs||[];
+  }
+  // 2. Basculer sur l'onglet Devis/Factures sans recharger
+  currentNav='docs';
+  ['clients','docs','stats'].forEach(n=>{document.getElementById('nav-'+n)?.classList.toggle('on',n==='docs');});
+  document.getElementById('sb-search-wrap').style.display='none';
+  document.getElementById('sb-filters-wrap').style.display='none';
+  document.getElementById('list').style.display='none';
+  document.getElementById('new-btn').style.display='none';
+  document.getElementById('t-title').textContent='Devis & Factures';
+  document.getElementById('t-right').innerHTML='';
+  // 3. Rendre la liste une première fois pour créer la toolbar
+  renderDocsList();
+  // 4. Appliquer les filtres après que la toolbar est dans le DOM
   setTimeout(function(){
     const typeEl=document.getElementById('docs-filter-type');
     const statEl=document.getElementById('docs-filter-statut');
-    if(typeEl&&typeDoc)typeEl.value=typeDoc;
-    if(statEl&&statut)statEl.value=statut;
+    if(typeEl)typeEl.value=typeDoc||'tous';
+    if(statEl)statEl.value=statut||'tous';
     renderDocsList();
-    // Scroll vers le haut
-    document.getElementById('content').scrollTop=0;
-  },300);
+  },50);
 }
 async function openDocModalById(docId,cid,vid,gid){await openDocModal(gid,cid,vid,docId);}
 async function openAndPrint(docId,cid,vid,gid){await openDocModal(gid,cid,vid,docId);setTimeout(()=>printDoc(),400);}
@@ -1884,8 +1895,10 @@ function renderStats(){
     var mkPipeRow=function(label,arr,montantStyle){
       var nb=arr.length;
       var montant=Number(sumF(arr)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+      var typeDoc=arr.length?arr[0].type_doc:'';
+      var statut=arr.length?arr[0].statut:'';
       var nbCell=nb>0
-        ?'<td><button onclick="showDocsByStatut('+JSON.stringify(arr.map(function(d){return d.id;}))+','+JSON.stringify(arr[0]?arr[0].statut:'')+','+JSON.stringify(arr[0]?arr[0].type_doc:'')+');" style="background:var(--pul);border:0.5px solid var(--pu);color:var(--put);border-radius:20px;padding:2px 10px;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--font)">'+nb+' →</button></td>'
+        ?'<td><button data-type="'+typeDoc+'" data-statut="'+statut+'" onclick="showDocsByStatut(this.dataset.type,this.dataset.statut)" style="background:var(--pul);border:0.5px solid var(--pu);color:var(--put);border-radius:20px;padding:2px 10px;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--font)">'+nb+' →</button></td>'
         :'<td style="color:var(--tx2)">0</td>';
       var mCell='<td style="'+(montantStyle||'')+'">'+montant+'</td>';
       return '<tr><td>'+label+'</td>'+nbCell+mCell+'</tr>';
