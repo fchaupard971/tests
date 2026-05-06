@@ -804,9 +804,16 @@ async function showInterventions(cid,vid){
     const delBtn=can('delete')?`<button class="b d" onclick="delIG('${g.id}','${vid}')">Supprimer</button>`:'';
     const hasDocs=docs&&docs.length>0;
     const hasFacture=docs&&docs.some(d=>d.type_doc==='facture');
-    const hasDevis=docs&&docs.some(d=>d.type_doc==='devis'&&d.statut!=='accepté');
     const hasDevisAccepte=docs&&docs.some(d=>d.type_doc==='devis'&&d.statut==='accepté');
-    const newDocBtn=can('interventions')?(!hasDocs?`<button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}',null,${g.tva_pct||8.5})">📋 Créer un devis</button>`:(!hasFacture&&hasDevisAccepte?`<button class="b p" onclick="quickConvertFromGroup('${g.id}','${cid}','${vid}')">🧾 → Facture</button>`:'')):'';;
+    // Bouton "Créer un devis" : toujours disponible sauf si une facture existe déjà
+    // Bouton "→ Facture" : si un devis accepté existe et pas encore de facture
+    const newDocBtn=can('interventions')?(
+      !hasFacture&&hasDevisAccepte
+        ?`<button class="b p" onclick="quickConvertFromGroup('${g.id}','${cid}','${vid}')">🧾 → Facture</button><button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}',null,${g.tva_pct||8.5})">📋 + Devis</button>`
+        :!hasFacture
+        ?`<button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}',null,${g.tva_pct||8.5})">📋 Créer un devis</button>`
+        :''
+    ):'';
     return`<div class="ig-card">
       <div class="ig-header">
         <div class="ig-meta">
