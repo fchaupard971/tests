@@ -1181,7 +1181,7 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   // ── Verrouiller si facture envoyée ou payée ───────────────────
   const statut=document.getElementById('doc-status')?.value||'brouillon';
   const type=document.getElementById('doc-type')?.value||'devis';
-  const isLocked=type==='facture'&&statut==='payé';
+  const isLocked=(type==='facture'&&statut==='payé')||(type==='devis'&&statut==='accepté');
   lockDocModal(isLocked,statut);
   document.getElementById('doc-modal').style.display='flex';
 }
@@ -1220,7 +1220,7 @@ function lockDocModal(locked,statut){
       const body=document.querySelector('.md-doc-body');
       if(body)body.insertBefore(banner,body.firstChild);
     }
-    const labels={envoyé:'📤 Facture envoyée — en lecture seule. Utilisez "Marquer payée" pour clôturer.',payé:'✅ Facture payée — archivée, aucune modification possible.'};
+    const labels={envoyé:'📤 Facture envoyée — en lecture seule. Utilisez "Marquer payée" pour clôturer.',payé:'✅ Facture payée — archivée, aucune modification possible.',accepté:'✅ Devis accepté — en lecture seule. Utilisez "🧾 → Facture" pour générer la facture.'};
     banner.textContent=labels[statut]||'🔒 Document verrouillé.';
     banner.style.display='flex';
     // Désactiver les inputs dans les lignes
@@ -1384,7 +1384,8 @@ async function saveDoc(){
   // Bloquer seulement si la facture était déjà verrouillée À L'OUVERTURE
   const type=document.getElementById('doc-type').value;
   const origStatut=currentDoc.originalStatut||'brouillon';
-  if(type==='facture'&&(origStatut==='payé')){toast('Cette facture est payée et ne peut plus être modifiée.','ko');return;}
+  if(type==='facture'&&origStatut==='payé'){toast('Cette facture est payée et ne peut plus être modifiée.','ko');return;}
+  if(type==='devis'&&origStatut==='accepté'){toast('Ce devis est accepté et ne peut plus être modifié.','ko');return;}
   setBtn('save-doc-btn',true);
   const tva=parseFloat(document.getElementById('doc-tva').value)||0;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
@@ -1602,7 +1603,7 @@ function renderDocsList(){
     const hasLinkedFacture=all.some(x=>x.group_id===d.group_id&&x.type_doc==='facture');
     const canConvert=isDevis&&d.statut==='accepté'&&!hasLinkedFacture;
     const canPay=!isDevis&&d.statut==='envoyé';
-    const isLocked=!isDevis&&d.statut==='payé';
+    const isLocked=(!isDevis&&d.statut==='payé')||(isDevis&&d.statut==='accepté');
     return`<div class="doc-card" style="${isLocked?'opacity:.85':''}">
       <div class="doc-hd">
         <div>
