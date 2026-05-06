@@ -426,7 +426,7 @@ canvas{max-height:220px}
     <div class="md-doc-body">
       <div class="fr" style="margin-bottom:14px">
         <div class="fg"><label>Type</label><div style="display:flex;align-items:center;height:32px"><span id="doc-type-display" style="font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;background:var(--ol);color:var(--ot)">📋 Devis</span></div><input type="hidden" id="doc-type" value="devis"></div>
-        <div class="fg"><label>Statut</label><select id="doc-status" onchange="updateDocBadges()"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="envoyé">Émise</option><option value="payé">Payée</option></select></div>
+        <div class="fg"><label>Statut</label><select id="doc-status" onchange="updateDocBadges()"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="payé">Payée</option></select></div>
       </div>
       <div class="fr">
         <div class="fg"><label>Date d'émission</label><input id="doc-date-em" type="date" onchange="renderDocPreviewSync()"></div>
@@ -1129,6 +1129,7 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   var dtd=document.getElementById('doc-type-display');
   if(dtd){dtd.textContent='📋 Devis';dtd.style.background='var(--ol)';dtd.style.color='var(--ot)';}
   document.getElementById('doc-status').value='brouillon';
+  currentDoc.originalStatut='brouillon';
   document.getElementById('doc-mentions').value='';
   document.getElementById('doc-note-int').value='';
   const bpaEl=document.getElementById('doc-bpa');if(bpaEl)bpaEl.value='';
@@ -1151,6 +1152,7 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
         else{dtd.textContent='📋 Devis';dtd.style.background='var(--ol)';dtd.style.color='var(--ot)';}
       }
       document.getElementById('doc-status').value=d.statut;
+      currentDoc.originalStatut=d.statut; // statut au moment de l'ouverture
       document.getElementById('doc-date-em').value=d.date_emission?d.date_emission.split('T')[0]:today2;
       document.getElementById('doc-date-ech').value=d.date_echeance?d.date_echeance.split('T')[0]:'';
       document.getElementById('doc-tva').value=d.tva_pct!=null?d.tva_pct:8.5;
@@ -1179,7 +1181,7 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   // ── Verrouiller si facture envoyée ou payée ───────────────────
   const statut=document.getElementById('doc-status')?.value||'brouillon';
   const type=document.getElementById('doc-type')?.value||'devis';
-  const isLocked=type==='facture'&&(statut==='envoyé'||statut==='payé');
+  const isLocked=type==='facture'&&statut==='payé';
   lockDocModal(isLocked,statut);
   document.getElementById('doc-modal').style.display='flex';
 }
@@ -1370,10 +1372,10 @@ function renderDocPreviewSync(){
 }
 
 async function saveDoc(){
-  // Refuser la sauvegarde si facture envoyée ou payée
+  // Bloquer seulement si la facture était déjà verrouillée À L'OUVERTURE
   const type=document.getElementById('doc-type').value;
-  const statut=document.getElementById('doc-status').value;
-  if(type==='facture'&&(statut==='envoyé'||statut==='payé')){toast('Cette facture est verrouillée et ne peut pas être modifiée.','ko');return;}
+  const origStatut=currentDoc.originalStatut||'brouillon';
+  if(type==='facture'&&(origStatut==='payé')){toast('Cette facture est payée et ne peut plus être modifiée.','ko');return;}
   setBtn('save-doc-btn',true);
   const tva=parseFloat(document.getElementById('doc-tva').value)||0;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
@@ -1470,7 +1472,7 @@ function updateDocBadges(){
   };
   checkNoFacture();
   // Afficher "Marquer payée" si facture émise
-  if(pb)pb.style.display=(type==='facture'&&statut==='envoyé'&&currentDoc.docId)?'flex':'none';
+  if(pb)pb.style.display=(type==='facture'&&(statut==='envoyé'||statut==='brouillon')&&currentDoc.docId)?'flex':'none';
 }
 
 async function convertToFacture(){
@@ -2005,7 +2007,7 @@ function renderStats(){
   }
 
   if(activeBlocs.has('ca_mensuel')||activeBlocs.has('actes_type')){    html+='<div class="charts-grid">';
-    html+=activeBlocs.has('ca_mensuel')?'<div class="chart-card"><h4>CA mensuel (12 mois)</h4><canvas id="ch-ca"></canvas></div>':'<div></div>';
+    html+=activeBlocs.has('ca_mensuel')?'<div class="chart-card"><h4>CA mensuel (18 mois)</h4><canvas id="ch-ca"></canvas></div>':'<div></div>';
     html+=activeBlocs.has('actes_type')&&typeSorted.length?'<div class="chart-card"><h4>Actes par type</h4><canvas id="ch-type"></canvas></div>':'<div></div>';
     html+='</div>';
   }
