@@ -425,7 +425,7 @@ canvas{max-height:220px}
     </div>
     <div class="md-doc-body">
       <div class="fr" style="margin-bottom:14px">
-        <div class="fg"><label>Type</label><select id="doc-type" onchange="renderDocPreviewSync();updateDocBadges()"><option value="devis">Devis</option><option value="facture">Facture</option></select></div>
+        <div class="fg"><label>Type</label><div style="display:flex;align-items:center;height:32px"><span id="doc-type-display" style="font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;background:var(--ol);color:var(--ot)">📋 Devis</span></div><input type="hidden" id="doc-type" value="devis"></div>
         <div class="fg"><label>Statut</label><select id="doc-status" onchange="updateDocBadges()"><option value="brouillon">Brouillon</option><option value="envoyé">Envoyé</option><option value="accepté">Accepté</option><option value="refusé">Refusé</option><option value="envoyé">Émise</option><option value="payé">Payée</option></select></div>
       </div>
       <div class="fr">
@@ -1126,8 +1126,8 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   document.getElementById('doc-date-ech').value='';
   document.getElementById('doc-tva').value=docId?'8.5':(tvaPct!=null?tvaPct:(document.getElementById('ig-tva')?.value||'8.5'));
   document.getElementById('doc-type').value='devis';
-  // Nouveau document = type figé à "Devis" (la conversion se fait via bouton)
-  document.getElementById('doc-type').disabled=false;
+  var dtd=document.getElementById('doc-type-display');
+  if(dtd){dtd.textContent='📋 Devis';dtd.style.background='var(--ol)';dtd.style.color='var(--ot)';}
   document.getElementById('doc-status').value='brouillon';
   document.getElementById('doc-mentions').value='';
   document.getElementById('doc-note-int').value='';
@@ -1144,8 +1144,12 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
     const{data:d}=await SB.from('documents_facturation').select('*,source_facture:documents_facturation!source_devis_id(id,numero,statut,type_doc)').eq('id',docId).single();
     if(d){
       document.getElementById('doc-type').value=d.type_doc;
-      // Verrouiller le type (devis ne peut pas devenir facture manuellement)
-      document.getElementById('doc-type').disabled=true;
+      // Mettre à jour l'affichage texte du type
+      var dtd=document.getElementById('doc-type-display');
+      if(dtd){
+        if(d.type_doc==='facture'){dtd.textContent='🧾 Facture';dtd.style.background='var(--pul)';dtd.style.color='var(--put)';}
+        else{dtd.textContent='📋 Devis';dtd.style.background='var(--ol)';dtd.style.color='var(--ot)';}
+      }
       document.getElementById('doc-status').value=d.statut;
       document.getElementById('doc-date-em').value=d.date_emission?d.date_emission.split('T')[0]:today2;
       document.getElementById('doc-date-ech').value=d.date_echeance?d.date_echeance.split('T')[0]:'';
