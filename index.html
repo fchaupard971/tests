@@ -363,7 +363,7 @@ canvas{max-height:220px}
   <!-- Sélection des actes -->
   <div class="sdiv">💶 TVA applicable</div>
   <div class="fr" style="margin-bottom:4px">
-    <div class="fg"><label>Taux de TVA (%)</label><input id="ig-tva" type="number" value="8.5" min="0" max="100" step="0.1" placeholder="8.5" style="font-size:13px;font-weight:500"></div>
+    <div class="fg"><label>Taux de TVA (%)</label><input id="ig-tva" type="number" value="8.5" min="0" max="100" step="0.1" placeholder="8.5" style="font-size:13px;font-weight:500" oninput="recalcActesTotaux()"></div>
     <div class="fg" style="justify-content:flex-end;padding-top:20px"><span style="font-size:11px;color:var(--tx2)">Appliqué automatiquement lors de la génération des devis / factures</span></div>
   </div>
 
@@ -838,14 +838,44 @@ function renderSelectedActes(){
         <span class="ico">${iIco(a.type)}</span>
         <span class="nm">${a.type}</span>
         <div class="fg" style="margin:0;flex-direction:row;align-items:center;gap:6px">
-          <label style="font-size:11px;color:var(--tx2);white-space:nowrap">Montant €</label>
-          <input type="number" min="0" step="0.01" placeholder="0.00" value="${a.montant||''}" style="width:90px;font-size:12px;padding:5px 8px;border:0.5px solid var(--bd);border-radius:var(--r);background:var(--bg);color:var(--tx);outline:none" onblur="updActe(${idx},'montant',this.value)">
+          <label style="font-size:11px;color:var(--tx2);white-space:nowrap">Montant HT €</label>
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${a.montant||''}" style="width:90px;font-size:12px;padding:5px 8px;border:0.5px solid var(--bd);border-radius:var(--r);background:var(--bg);color:var(--tx);outline:none" onblur="updActe(${idx},'montant',this.value);recalcActesTotaux()">
         </div>
         <button class="rm" onclick="toggleActe('${a.type}')">✕</button>
       </div>
       ${config}
     </div>`;
   }).join('');
+  recalcActesTotaux();
+}
+
+function recalcActesTotaux(){
+  const ht=selectedActes.reduce((s,a)=>s+(parseFloat(a.montant)||0),0);
+  const tva=parseFloat(document.getElementById('ig-tva')?.value)||8.5;
+  const tvaMnt=ht*tva/100;
+  const ttc=ht+tvaMnt;
+  let el=document.getElementById('actes-totaux');
+  if(!el){
+    el=document.createElement('div');
+    el.id='actes-totaux';
+    const container=document.getElementById('selected-actes');
+    if(container)container.after(el);
+  }
+  if(!selectedActes.length){el.innerHTML='';return;}
+  el.innerHTML=`<div style="background:var(--bg2);border:0.5px solid var(--bd);border-radius:var(--rl);padding:12px 16px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bd2)">
+      <span style="font-size:11px;color:var(--tx2)">Sous-total HT</span>
+      <span style="font-size:13px;font-weight:600;color:var(--tx)">${Number(ht).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--bd2)">
+      <span style="font-size:11px;color:var(--tx2)">TVA (${tva}%)</span>
+      <span style="font-size:12px;color:var(--tx2)">${Number(tvaMnt).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px">
+      <span style="font-size:12px;font-weight:700;color:var(--tx)">TOTAL TTC</span>
+      <span style="font-size:16px;font-weight:700;color:var(--pu)">${Number(ttc).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</span>
+    </div>
+  </div>`;
 }
 
 function updActe(idx,field,val){
@@ -928,6 +958,7 @@ function resetIGM(){
   document.getElementById('ig-com').value='';
   document.getElementById('ig-note').value='';
   document.getElementById('ig-tva').value='8.5';
+  const totEl=document.getElementById('actes-totaux');if(totEl)totEl.innerHTML='';
   document.getElementById('rappel-actif').checked=false;
   document.getElementById('rappel-config').style.display='none';
   ['c-email','c-sms','c-whatsapp'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='canal-btn';});
