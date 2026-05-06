@@ -1186,7 +1186,16 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
   document.getElementById('doc-modal').style.display='flex';
 }
 
-function closeDocModal(){document.getElementById('doc-modal').style.display='none';}
+function closeDocModal(){
+  document.getElementById('doc-modal').style.display='none';
+  // Rafraîchir la vue courante selon le contexte
+  if(currentNav==='docs'){
+    allDocsCache=[];showAllDocs(true);
+  } else if(currentNav==='clients'&&curCID){
+    if(curVID){showInterventions(curCID,curVID);}
+    else{showClient(curCID);}
+  }
+}
 
 function lockDocModal(locked,statut){
   // Champs du formulaire
@@ -1618,7 +1627,7 @@ function renderDocsList(){
         <button class="b or" onclick="openAndPrint('${d.id}','${d.contact_id}','${d.vehicule_id}','${d.group_id}')">🖨️ Imprimer</button>
         <button class="b" onclick="openDocSendEmail('${d.id}','${d.contact_id}')">📧 Email</button>
         <button class="b wa" onclick="openDocSendWA('${d.id}','${d.contact_id}')">🟢 WhatsApp</button>
-        ${can('delete')&&!isLocked?`<button class="b d" onclick="delDoc('${d.id}')">Supprimer</button>`:''}
+        ${(()=>{if(!can('delete')||isLocked)return '';if(d.type_doc==='facture'&&d.statut==='payé')return '';const linkedPaidFac=d.type_doc==='devis'?all.find(x=>x.source_devis_id===d.id&&x.statut==='payé'):null;if(linkedPaidFac)return '<span style="font-size:10px;color:var(--tx2);padding:5px 8px">🔒 Devis archivé</span>';return `<button class="b d" onclick="delDoc('${d.id}')">Supprimer</button>`;})()}
       </div>
     </div>`;
   };
@@ -1762,10 +1771,31 @@ async function openDocSendWA(docId,cid){
 }
 async function delDoc(id){
   if(!can('delete')){alert('Accès non autorisé.');return;}
-  if(!confirm('Supprimer ce document ?'))return;
+  // Charger le document pour vérifier son statut et ses liens
+  const{data:doc}=await SB.from('documents_facturation').select('id,type_doc,statut,numero,source_devis_id').eq('id',id).single();
+  if(!doc){toast('Document introuvable.','ko');return;}
+  // Bloquer si facture payée
+  if(doc.type_doc==='facture'&&doc.statut==='payé'){
+    toast('Impossible de supprimer la facture '+doc.numero+' — elle est payée.','ko');return;
+  }
+  // Bloquer si devis rattaché à une facture payée
+  if(doc.type_doc==='devis'){
+    const{data:facLiee}=await SB.from('documents_facturation').select('id,numero,statut').eq('source_devis_id',id).maybeSingle();
+    if(facLiee&&facLiee.statut==='payé'){
+      toast('Impossible de supprimer le devis '+doc.numero+' — la facture liée '+facLiee.numero+' est payée.','ko');return;
+    }
+    if(facLiee){
+      if(!confirm('Ce devis est lié à la facture '+facLiee.numero+' ('+facLiee.statut+'). Supprimer quand même le devis ?'))return;
+    } else {
+      if(!confirm('Supprimer le devis '+doc.numero+' ?'))return;
+    }
+  } else {
+    if(!confirm('Supprimer la facture '+doc.numero+' ?'))return;
+  }
   const{error}=await SB.from('documents_facturation').delete().eq('id',id);
   if(error){toast('Erreur : '+error.message,'ko');return;}
-  toast('Document supprimé','ok');await showAllDocs();
+  toast('Document supprimé ✓','ok');
+  allDocsCache=[];await showAllDocs();
 }
 
 // ══════════════════════════════════════════════════════
