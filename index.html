@@ -361,6 +361,12 @@ canvas{max-height:220px}
   <div class="fg"><label>Note générale</label><input id="ig-note" placeholder="Optionnel…"></div>
 
   <!-- Sélection des actes -->
+  <div class="sdiv">💶 TVA applicable</div>
+  <div class="fr" style="margin-bottom:4px">
+    <div class="fg"><label>Taux de TVA (%)</label><input id="ig-tva" type="number" value="8.5" min="0" max="100" step="0.1" placeholder="8.5" style="font-size:13px;font-weight:500"></div>
+    <div class="fg" style="justify-content:flex-end;padding-top:20px"><span style="font-size:11px;color:var(--tx2)">Appliqué automatiquement lors de la génération des devis / factures</span></div>
+  </div>
+
   <div class="sdiv">Actes à réaliser (sélection multiple)</div>
   <div class="acte-types-grid" id="acte-types-grid"></div>
   <div id="selected-actes"></div>
@@ -742,7 +748,7 @@ async function showInterventions(cid,vid){
     const hasFacture=docs&&docs.some(d=>d.type_doc==='facture');
     const hasDevis=docs&&docs.some(d=>d.type_doc==='devis'&&d.statut!=='accepté');
     const hasDevisAccepte=docs&&docs.some(d=>d.type_doc==='devis'&&d.statut==='accepté');
-    const newDocBtn=can('interventions')?(!hasDocs?`<button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}')">📋 Créer un devis</button>`:(!hasFacture&&hasDevisAccepte?`<button class="b p" onclick="quickConvertFromGroup('${g.id}','${cid}','${vid}')">🧾 → Facture</button>`:'')):'';;
+    const newDocBtn=can('interventions')?(!hasDocs?`<button class="b or" onclick="openDocModal('${g.id}','${cid}','${vid}',null,${g.tva_pct||8.5})">📋 Créer un devis</button>`:(!hasFacture&&hasDevisAccepte?`<button class="b p" onclick="quickConvertFromGroup('${g.id}','${cid}','${vid}')">🧾 → Facture</button>`:'')):'';;
     return`<div class="ig-card">
       <div class="ig-header">
         <div class="ig-meta">
@@ -921,6 +927,7 @@ function resetIGM(){
   document.getElementById('ig-st').value='planned';
   document.getElementById('ig-com').value='';
   document.getElementById('ig-note').value='';
+  document.getElementById('ig-tva').value='8.5';
   document.getElementById('rappel-actif').checked=false;
   document.getElementById('rappel-config').style.display='none';
   ['c-email','c-sms','c-whatsapp'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='canal-btn';});
@@ -944,6 +951,7 @@ async function openIGM(cid,vid,gid,isEdit){
       document.getElementById('ig-st').value=g.statut;
       document.getElementById('ig-com').value=g.commune||'';
       document.getElementById('ig-note').value=g.note||'';
+      document.getElementById('ig-tva').value=g.tva_pct!=null?g.tva_pct:8.5;
       selectedActes=(g.intervention_actes||[]).map(a=>({type:a.type,deplUrgence:a.depl_urgence,deplLieu:a.depl_lieu,gardForm:a.gard_form,gardQty:a.gard_qty||1,montant:a.montant||''}));
       const rap=g.rappels_v2?.[0];
       if(rap?.actif){
@@ -983,7 +991,7 @@ async function saveIG(){
   }
   setBtn('sig-btn',true);
   const montantTotal=selectedActes.reduce((s,a)=>s+(parseFloat(a.montant)||0),0);
-  const groupData={vehicule_id:curVID,commune:document.getElementById('ig-com').value||null,statut:document.getElementById('ig-st').value,date_debut:document.getElementById('ig-dd').value||null,date_fin:document.getElementById('ig-df').value||null,montant_total:montantTotal||null,note:document.getElementById('ig-note').value.trim()||null};
+  const groupData={vehicule_id:curVID,commune:document.getElementById('ig-com').value||null,statut:document.getElementById('ig-st').value,date_debut:document.getElementById('ig-dd').value||null,date_fin:document.getElementById('ig-df').value||null,montant_total:montantTotal||null,note:document.getElementById('ig-note').value.trim()||null,tva_pct:parseFloat(document.getElementById('ig-tva').value)||8.5};
   try{
     let gid=editIGID;
     if(editIGID){
@@ -1017,7 +1025,7 @@ async function saveIG(){
 // ══════════════════════════════════════════════════════
 let currentDoc={lignes:[],groupId:null,contactId:null,vehiculeId:null,docId:null,vehiculeCache:null,actesSuggestions:[]};
 
-async function openDocModal(gid,cid,vid,docId){
+async function openDocModal(gid,cid,vid,docId,tvaPct){
   // Pre-load vehicle and contact data synchronously
   const[{data:vData},{data:actesBruts}]=await Promise.all([
     SB.from('vehicules').select('*').eq('id',vid).single(),
@@ -1027,7 +1035,7 @@ async function openDocModal(gid,cid,vid,docId){
   const today2=today();
   document.getElementById('doc-date-em').value=today2;
   document.getElementById('doc-date-ech').value='';
-  document.getElementById('doc-tva').value='8.5';
+  document.getElementById('doc-tva').value=docId?'8.5':(tvaPct!=null?tvaPct:(document.getElementById('ig-tva')?.value||'8.5'));
   document.getElementById('doc-type').value='devis';
   document.getElementById('doc-status').value='brouillon';
   document.getElementById('doc-mentions').value='';
