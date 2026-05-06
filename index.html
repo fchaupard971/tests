@@ -1665,10 +1665,21 @@ async function quickConvertFromGroup(gid,cid,vid){
   if(curVID)await showInterventions(cid,vid);
 }
 
-// Pipeline visuel (simplifié dans la zone contenu)
-function showStatsPipeline(){
-  // Already shown in showAllDocs via KPIs
-  showAllDocs();
+// Pipeline stats → vue docs filtrée
+async function showDocsByStatut(ids,statut,typeDoc){
+  // Basculer sur l'onglet Devis/Factures
+  switchNav('docs');
+  await showAllDocs(true);
+  // Attendre que les données soient chargées puis pré-remplir les filtres
+  setTimeout(function(){
+    const typeEl=document.getElementById('docs-filter-type');
+    const statEl=document.getElementById('docs-filter-statut');
+    if(typeEl&&typeDoc)typeEl.value=typeDoc;
+    if(statEl&&statut)statEl.value=statut;
+    renderDocsList();
+    // Scroll vers le haut
+    document.getElementById('content').scrollTop=0;
+  },300);
 }
 async function openDocModalById(docId,cid,vid,gid){await openDocModal(gid,cid,vid,docId);}
 async function openAndPrint(docId,cid,vid,gid){await openDocModal(gid,cid,vid,docId);setTimeout(()=>printDoc(),400);}
@@ -1868,24 +1879,36 @@ function renderStats(){
     var dAccepte=dl.filter(function(d){return d.type_doc==='devis'&&d.statut==='accepté';});
     var dRefuse=dl.filter(function(d){return d.type_doc==='devis'&&d.statut==='refusé';});
     var sumF=function(arr){return arr.reduce(function(s,d){return s+(parseFloat(d.montant_ttc)||0);},0);};
+
+    // Fonction helper : rend une ligne cliquable si nb > 0
+    var mkPipeRow=function(label,arr,montantStyle){
+      var nb=arr.length;
+      var montant=Number(sumF(arr)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+      var nbCell=nb>0
+        ?'<td><button onclick="showDocsByStatut('+JSON.stringify(arr.map(function(d){return d.id;}))+','+JSON.stringify(arr[0]?arr[0].statut:'')+','+JSON.stringify(arr[0]?arr[0].type_doc:'')+');" style="background:var(--pul);border:0.5px solid var(--pu);color:var(--put);border-radius:20px;padding:2px 10px;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--font)">'+nb+' →</button></td>'
+        :'<td style="color:var(--tx2)">0</td>';
+      var mCell='<td style="'+(montantStyle||'')+'">'+montant+'</td>';
+      return '<tr><td>'+label+'</td>'+nbCell+mCell+'</tr>';
+    };
+
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'
       // Colonne Devis
       +'<div style="background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--rl);padding:16px">'
       +'<h4 style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:12px">📋 Pipeline Devis</h4>'
       +'<table class="stat-table"><thead><tr><th>Statut</th><th>Nb</th><th>Montant</th></tr></thead><tbody>'
-      +'<tr><td><span style="background:var(--bg2);color:var(--tx2);padding:2px 7px;border-radius:20px;font-size:10px">⚪ Brouillon</span></td><td>'+dBrouillon.length+'</td><td>'+Number(sumF(dBrouillon)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
-      +'<tr><td><span style="background:var(--bl);color:var(--bt);padding:2px 7px;border-radius:20px;font-size:10px">📤 Envoyé</span></td><td>'+dEnvoye.length+'</td><td>'+Number(sumF(dEnvoye)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
-      +'<tr><td><span style="background:var(--gl);color:var(--gt);padding:2px 7px;border-radius:20px;font-size:10px">✅ Accepté</span></td><td>'+dAccepte.length+'</td><td>'+Number(sumF(dAccepte)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
-      +'<tr><td><span style="background:var(--rl2);color:var(--rt);padding:2px 7px;border-radius:20px;font-size:10px">❌ Refusé</span></td><td>'+dRefuse.length+'</td><td>'+Number(sumF(dRefuse)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +mkPipeRow('<span style="background:var(--bg2);color:var(--tx2);padding:2px 7px;border-radius:20px;font-size:10px">⚪ Brouillon</span>',dBrouillon,'')
+      +mkPipeRow('<span style="background:var(--bl);color:var(--bt);padding:2px 7px;border-radius:20px;font-size:10px">📤 Envoyé</span>',dEnvoye,'')
+      +mkPipeRow('<span style="background:var(--gl);color:var(--gt);padding:2px 7px;border-radius:20px;font-size:10px">✅ Accepté</span>',dAccepte,'font-weight:600;color:var(--gt)')
+      +mkPipeRow('<span style="background:var(--rl2);color:var(--rt);padding:2px 7px;border-radius:20px;font-size:10px">❌ Refusé</span>',dRefuse,'color:var(--tx2)')
       +'</tbody></table></div>'
       // Colonne Factures
       +'<div style="background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--rl);padding:16px">'
       +'<h4 style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:12px">🧾 Pipeline Factures</h4>'
       +'<table class="stat-table"><thead><tr><th>Statut</th><th>Nb</th><th>Montant</th></tr></thead><tbody>'
-      +'<tr><td><span style="background:var(--bg2);color:var(--tx2);padding:2px 7px;border-radius:20px;font-size:10px">⚪ Brouillon</span></td><td>'+fBrouillon.length+'</td><td>'+Number(sumF(fBrouillon)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
-      +'<tr><td><span style="background:var(--ol);color:var(--ot);padding:2px 7px;border-radius:20px;font-size:10px">📤 Envoyée</span></td><td>'+fEnvoye.length+'</td><td style="font-weight:600;color:var(--oc)">'+Number(sumF(fEnvoye)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
-      +'<tr><td><span style="background:#F0FDF4;color:#15803d;padding:2px 7px;border-radius:20px;font-size:10px">💰 Payée</span></td><td>'+fPaye.length+'</td><td style="font-weight:600;color:var(--gt)">'+Number(sumF(fPaye)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
-      +'<tr><td><span style="background:var(--rl2);color:var(--rt);padding:2px 7px;border-radius:20px;font-size:10px">❌ Refusée</span></td><td>'+fRefuse.length+'</td><td>'+Number(sumF(fRefuse)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +mkPipeRow('<span style="background:var(--bg2);color:var(--tx2);padding:2px 7px;border-radius:20px;font-size:10px">⚪ Brouillon</span>',fBrouillon,'')
+      +mkPipeRow('<span style="background:var(--ol);color:var(--ot);padding:2px 7px;border-radius:20px;font-size:10px">📤 Envoyée</span>',fEnvoye,'font-weight:600;color:var(--oc)')
+      +mkPipeRow('<span style="background:#F0FDF4;color:#15803d;padding:2px 7px;border-radius:20px;font-size:10px">💰 Payée</span>',fPaye,'font-weight:600;color:var(--gt)')
+      +mkPipeRow('<span style="background:var(--rl2);color:var(--rt);padding:2px 7px;border-radius:20px;font-size:10px">❌ Refusée</span>',fRefuse,'color:var(--tx2)')
       +'</tbody></table></div>'
       +'</div>';
   }
