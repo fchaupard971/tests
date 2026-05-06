@@ -434,7 +434,7 @@ canvas{max-height:220px}
       </div>
       <div class="fr">
         <div class="fg"><label>TVA %</label><input id="doc-tva" type="number" value="8.5" min="0" max="100" step="0.1" oninput="recalcDoc()"></div>
-        <div class="fg"><label>Numéro</label><input id="doc-num" placeholder="auto" onchange="renderDocPreviewSync()"></div>
+        <div class="fg"><label>Numéro</label><input id="doc-num" placeholder="auto" readonly style="background:var(--bg2);cursor:default;color:var(--tx2)"></div>
       </div>
       <!-- Lignes -->
       <div style="font-size:11px;font-weight:600;color:var(--tx);margin-bottom:8px">Lignes de facturation</div>
