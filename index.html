@@ -590,6 +590,45 @@ async function showClient(id){
   document.getElementById('t-right').innerHTML=`<span class="badge ${c.statut}">${c.statut==='client'?'Client':'Prospect'}</span><button class="b g" onclick="nav('${id}','vehicles')">🚗 Véhicules</button>`;
   const eb=can('create')?`<button class="b" onclick="openCM('${id}')">Modifier</button>`:'';
   const db=can('delete')?`<button class="b d" onclick="delContact('${id}')">Supprimer</button>`:'';
+
+  // Charger les documents liés à ce contact
+  const{data:docs}=await SB.from('documents_facturation')
+    .select('id,type_doc,numero,statut,montant_ttc,date_emission,date_echeance,vehicule_id,group_id')
+    .eq('contact_id',id)
+    .order('date_emission',{ascending:false});
+  const allDocs=docs||[];
+  const devis=allDocs.filter(d=>d.type_doc==='devis');
+  const factures=allDocs.filter(d=>d.type_doc==='facture');
+  const caPayé=factures.filter(d=>d.statut==='payé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+  const caAttente=factures.filter(d=>d.statut==='envoyé').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+
+  const mkDocRow=d=>{
+    const bg=STATUT_BG[d.statut]||'#f5f5f4';
+    const col=STATUT_COLORS[d.statut]||'#78716c';
+    const ico=d.type_doc==='devis'?'📋':'🧾';
+    return`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:0.5px solid var(--bd2);flex-wrap:wrap">
+      <button onclick="openDocModalById('${d.id}','${id}','${d.vehicule_id||''}','${d.group_id||''}')" style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-family:var(--font);text-align:left;padding:0;flex:1;min-width:0">
+        <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${bg};color:${col};font-weight:500;white-space:nowrap">${ico} ${d.numero||'—'}</span>
+        <span style="font-size:11px;color:var(--tx2);white-space:nowrap">${fd(d.date_emission)}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${bg};color:${col};opacity:.8">${STATUT_LABELS[d.statut]||d.statut}</span>
+      </button>
+      <span style="font-size:13px;font-weight:600;color:var(--bt);white-space:nowrap;margin-left:auto">${fm(d.montant_ttc)}</span>
+    </div>`;
+  };
+
+  const docsSection=allDocs.length?`
+    <div class="vc" style="margin-bottom:14px">
+      <div class="vc-hd">
+        <div class="vc-ti">📄 Devis & Factures</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${caPayé>0?`<span style="font-size:11px;color:var(--gt);font-weight:500">✅ Encaissé : ${Number(caPayé).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</span>`:''}
+          ${caAttente>0?`<span style="font-size:11px;color:var(--oc);font-weight:500">⏳ En attente : ${Number(caAttente).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}</span>`:''}
+        </div>
+      </div>
+      ${devis.length?`<div style="font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;padding:6px 10px;background:var(--bg2)">Devis (${devis.length})</div>${devis.map(mkDocRow).join('')}`:''}
+      ${factures.length?`<div style="font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;padding:6px 10px;background:var(--bg2);${devis.length?'margin-top:6px':''}">Factures (${factures.length})</div>${factures.map(mkDocRow).join('')}`:''}
+    </div>`:`<div class="ni" style="margin-bottom:14px">Aucun devis ni facture pour ce client.</div>`;
+
   document.getElementById('content').innerHTML=`
     <div class="ph"><div class="av-lg ${c.statut}">${ini(c)}</div>
       <div style="flex:1;min-width:0"><div class="pname">${c.prenom} ${c.nom}${c.infirmier?' 🩺':''}</div>
@@ -606,6 +645,7 @@ async function showClient(id){
       <div class="dc"><div class="dl">Téléphone</div><div class="dv" style="font-weight:400">${c.telephone||'—'}</div></div>
       ${c.note?`<div class="dc full"><div class="dl">Note</div><div class="dv" style="font-weight:400">${c.note}</div></div>`:''}
     </div>
+    ${docsSection}
     <button class="b g" style="font-size:12px;padding:8px 14px" onclick="nav('${id}','vehicles')">🚗 Voir les véhicules →</button>`;
 }
 
