@@ -800,7 +800,7 @@ async function showInterventions(cid,vid){
         :'';
       return`<button onclick="openDocModalById('${d.id}','${docCid}','${docVid}','${g.id}')" title="Ouvrir ${label} — ${statusLabel}" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 9px;border-radius:20px;background:${bg};color:${col};font-weight:500;border:0.5px solid ${col}55;cursor:pointer;font-family:var(--font);transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${label} <span style="opacity:.65">(${statusLabel})</span>${linkPart}</button>`;
     }).join(' ');
-    const editBtn=can('interventions')?`<button class="b" onclick="openIGM('${g.vehicule_id}','${g.vehicule_id}','${g.id}',true)">Modifier</button>`:'';
+    const editBtn=can('interventions')?`<button class="b" onclick="openIGM('${cid}','${vid}','${g.id}',true)">Modifier</button>`:'';
     const delBtn=can('delete')?`<button class="b d" onclick="delIG('${g.id}','${vid}')">Supprimer</button>`:'';
     const hasDocs=docs&&docs.length>0;
     const hasFacture=docs&&docs.some(d=>d.type_doc==='facture');
