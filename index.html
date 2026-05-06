@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>XL & CIE SERVICES</title>
+<title> GESTION XL & CIE SERVICES</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
@@ -245,7 +245,7 @@ canvas{max-height:220px}
 
 <div id="login" class="fullscreen">
   <div class="card">
-    <div class="card-logo"><span class="ico">🚗</span><h1> GESTION XL & CIE SERVICES Auto</h1><p>Guadeloupe — Marie-Galante</p></div>
+    <div class="card-logo"><span class="ico">🚗</span><h1>CRM Auto</h1><p>Guadeloupe — Marie-Galante</p></div>
     <div class="err-box" id="login-err"></div>
     <div class="fg"><label>Identifiant</label><input id="lu" placeholder="admin" autocomplete="username"></div>
     <div class="fg"><label>Mot de passe</label><input id="lp" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
@@ -256,7 +256,7 @@ canvas{max-height:220px}
 
 <div id="app" style="display:none">
   <div id="sidebar">
-    <div class="sb-head"><h1> GESTION XL & CIE SERVICES Auto</h1><p id="nb">0 contacts</p></div>
+    <div class="sb-head"><h1>CRM Auto</h1><p id="nb">0 contacts</p></div>
     <div class="sb-nav">
       <button class="nav-btn on" id="nav-clients" onclick="switchNav('clients')">👥 Clients</button>
       <button class="nav-btn" id="nav-docs" onclick="switchNav('docs')">📄 Devis / Factures</button>
@@ -1062,10 +1062,49 @@ async function openDocModal(gid,cid,vid,docId){
   renderDocLignes();
   renderDocPreviewSync();
   updateDocBadges();
+  // ── Verrouiller si facture envoyée ou payée ───────────────────
+  const statut=document.getElementById('doc-status')?.value||'brouillon';
+  const type=document.getElementById('doc-type')?.value||'devis';
+  const isLocked=type==='facture'&&(statut==='envoyé'||statut==='payé');
+  lockDocModal(isLocked,statut);
   document.getElementById('doc-modal').style.display='flex';
 }
 
 function closeDocModal(){document.getElementById('doc-modal').style.display='none';}
+
+function lockDocModal(locked,statut){
+  // Champs du formulaire
+  const fields=['doc-type','doc-status','doc-date-em','doc-date-ech','doc-tva','doc-num','doc-mentions','doc-note-int','doc-bpa','doc-bpa-custom'];
+  fields.forEach(id=>{const el=document.getElementById(id);if(el){el.disabled=locked;el.style.opacity=locked?'0.6':'1';}});
+  // Bouton enregistrer
+  const saveBtn=document.getElementById('save-doc-btn');
+  if(saveBtn){saveBtn.disabled=locked;saveBtn.style.display=locked?'none':'inline-flex';}
+  // Bouton ajouter ligne
+  const addBtn=document.querySelector('#doc-lignes')?.closest('.md-doc-body')?.querySelector('button.b:not([id])');
+  // Cacher/afficher le bouton "+ Ajouter une ligne"
+  document.querySelectorAll('.md-doc-body .b').forEach(btn=>{
+    if(btn.textContent.includes('Ajouter une ligne')){btn.style.display=locked?'none':'block';}
+  });
+  // Bandeau de verrouillage
+  let banner=document.getElementById('doc-lock-banner');
+  if(locked){
+    if(!banner){
+      banner=document.createElement('div');
+      banner.id='doc-lock-banner';
+      banner.style.cssText='background:var(--ol);border:0.5px solid var(--oc);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--ot);display:flex;align-items:center;gap:8px;';
+      const body=document.querySelector('.md-doc-body');
+      if(body)body.insertBefore(banner,body.firstChild);
+    }
+    const labels={envoyé:'📤 Facture envoyée — en lecture seule. Utilisez "Marquer payée" pour clôturer.',payé:'✅ Facture payée — archivée, aucune modification possible.'};
+    banner.textContent=labels[statut]||'🔒 Document verrouillé.';
+    banner.style.display='flex';
+    // Désactiver les inputs dans les lignes
+    document.querySelectorAll('#doc-lignes input').forEach(inp=>{inp.disabled=true;inp.style.opacity='0.6';});
+  } else {
+    if(banner)banner.style.display='none';
+    document.querySelectorAll('#doc-lignes input').forEach(inp=>{inp.disabled=false;inp.style.opacity='1';});
+  }
+}
 
 function addLigne(){
   currentDoc.lignes.push({desc:'',qte:1,pu:0});
@@ -1176,7 +1215,7 @@ function renderDocPreviewSync(){
   if(!previewEl)return;
   previewEl.innerHTML=`<div class="invoice-preview">
     <div class="inv-header">
-      <div class="inv-company"><h2>🚗  GESTION XL & CIE SERVICES Auto Guadeloupe</h2><p>Guadeloupe — Marie-Galante</p></div>
+      <div class="inv-company"><h2>🚗 XL & CIE SERVICES</h2><p>Guadeloupe — Marie-Galante</p></div>
       <div class="inv-doc-info">
         <h3>${typeDoc==='facture'?'FACTURE':'DEVIS'} N° ${num}</h3>
         <p>Émis le : ${dateEm}</p>
@@ -1184,7 +1223,7 @@ function renderDocPreviewSync(){
       </div>
     </div>
     <div class="inv-parties">
-      <div class="inv-party"><h4>Émetteur</h4><p><strong> GESTION XL & CIE SERVICES Auto Guadeloupe</strong><br>Guadeloupe — Marie-Galante</p></div>
+      <div class="inv-party"><h4>Émetteur</h4><p><strong>XL & CIE SERVICES</strong><br>Guadeloupe — Marie-Galante</p></div>
       <div class="inv-party"><h4>Client</h4><p><strong>${c.prenom} ${c.nom}</strong>${c.adresse?'<br>'+c.adresse:''}${c.email?'<br>'+c.email:''}${c.telephone?'<br>'+c.telephone:''}</p>
         ${v?`<p style="margin-top:6px;font-size:11px;color:#78716c">🚗 ${v.marque} ${v.modele}${v.plaque?' — '+v.plaque:''}</p>`:''}
       </div>
@@ -1207,7 +1246,7 @@ function renderDocPreviewSync(){
         <div class="sig-line"></div>
       </div>
       <div class="inv-bpa-box">
-        <h5>Pour  GESTION XL & CIE SERVICES Auto Guadeloupe</h5>
+        <h5>Pour XL & CIE SERVICES</h5>
         <p>Date : _______________</p>
         <div class="sig-line"></div>
       </div>
@@ -1216,7 +1255,12 @@ function renderDocPreviewSync(){
   </div>`;
 }
 
-async function saveDoc(){  setBtn('save-doc-btn',true);
+async function saveDoc(){
+  // Refuser la sauvegarde si facture envoyée ou payée
+  const type=document.getElementById('doc-type').value;
+  const statut=document.getElementById('doc-status').value;
+  if(type==='facture'&&(statut==='envoyé'||statut==='payé')){toast('Cette facture est verrouillée et ne peut pas être modifiée.','ko');return;}
+  setBtn('save-doc-btn',true);
   const tva=parseFloat(document.getElementById('doc-tva').value)||0;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
   const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
@@ -1566,14 +1610,16 @@ let statsCache=null;
 function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy();}catch(e){}});charts={};}
 
 const STAT_BLOCS=[
-  {id:'kpis',        label:'KPIs généraux',          def:true},
-  {id:'ca_mensuel',  label:'CA mensuel (12 mois)',    def:true},
-  {id:'actes_type',  label:'Actes par type',          def:true},
-  {id:'abonnements', label:'Abonnements véhicules',   def:true},
-  {id:'communes',    label:'Communes de réception',   def:true},
-  {id:'detail_actes',label:'Détail actes (tableau)',  def:true},
-  {id:'ca_clients',  label:'CA par client (top 10)',  def:false},
-  {id:'nb_mois',     label:'Interventions par mois',  def:false},
+  {id:'kpis',             label:'KPIs généraux',                def:true},
+  {id:'ca_mensuel',       label:'CA mensuel (12 mois)',          def:true},
+  {id:'factures_pipeline',label:'Pipeline factures',             def:true},
+  {id:'factures_attente', label:'Factures en attente',           def:true},
+  {id:'actes_type',       label:'Actes par type',                def:true},
+  {id:'abonnements',      label:'Abonnements véhicules',         def:true},
+  {id:'communes',         label:'Communes de réception',         def:true},
+  {id:'detail_actes',     label:'Détail actes (tableau)',        def:true},
+  {id:'ca_clients',       label:'CA par client (top 10)',        def:false},
+  {id:'nb_mois',          label:'Interventions par mois',        def:false},
 ];
 let activeBlocs=new Set(STAT_BLOCS.filter(function(b){return b.def;}).map(function(b){return b.id;}));
 
@@ -1601,7 +1647,7 @@ async function loadStats(){
       SB.from('intervention_actes').select('*'),
       SB.from('vehicules').select('*'),
       SB.from('contacts').select('*'),
-      SB.from('documents_facturation').select('montant_ttc,type_doc,statut'),
+      SB.from('documents_facturation').select('id,type_doc,statut,montant_ttc,montant_ht,tva_pct,numero,date_emission,date_echeance,contact_id,vehicule_id,group_id'),
       SB.from('intervention_groups').select('montant_total,statut,vehicules(contact_id,contacts(prenom,nom))')
     ]);
     statsCache={
@@ -1658,6 +1704,9 @@ function renderStats(){
   var totalCA=done.reduce(function(s,g){return s+(parseFloat(g.montant_total)||0);},0);
   var nbClients=cl.filter(function(c){return c.statut==='client';}).length;
   var caPayee=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='payé';}).reduce(function(s,d){return s+(parseFloat(d.montant_ttc)||0);},0);
+  var caAttente=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='envoyé';}).reduce(function(s,d){return s+(parseFloat(d.montant_ttc)||0);},0);
+  var nbAttente=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='envoyé';}).length;
+  var nbPayees=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='payé';}).length;
 
   // Par type d'acte
   var byType={};
@@ -1672,7 +1721,8 @@ function renderStats(){
     else if(v.abonnement)byAbo[v.abonnement]=(byAbo[v.abonnement]||0)+1;
   });
 
-  // CA mensuel (12 mois)
+  // CA mensuel (12 mois) — basé sur les factures PAYÉES par date d'émission
+  // + interventions réalisées pour le nb d'interventions par mois
   var now=new Date();
   var monthCA=[];var monthNb=[];var monthLbl=[];
   for(var mi=11;mi>=0;mi--){
@@ -1680,10 +1730,17 @@ function renderStats(){
     monthLbl.push(dt.toLocaleString('fr-FR',{month:'short',year:'2-digit'}));
     monthCA.push(0);monthNb.push(0);
   }
+  // CA = factures payées groupées par mois d'émission
+  dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='payé'&&d.date_emission;}).forEach(function(d){
+    var dt=new Date(d.date_emission);
+    var diff=(now.getFullYear()-dt.getFullYear())*12+(now.getMonth()-dt.getMonth());
+    if(diff>=0&&diff<12){monthCA[11-diff]+=(parseFloat(d.montant_ttc)||0);}
+  });
+  // Nb interventions = groupes réalisés par mois
   done.filter(function(g){return g.date_debut;}).forEach(function(g){
     var dt=new Date(g.date_debut);
     var diff=(now.getFullYear()-dt.getFullYear())*12+(now.getMonth()-dt.getMonth());
-    if(diff>=0&&diff<12){monthCA[11-diff]+=(parseFloat(g.montant_total)||0);monthNb[11-diff]++;}
+    if(diff>=0&&diff<12){monthNb[11-diff]++;}
   });
 
   // Communes
@@ -1704,16 +1761,71 @@ function renderStats(){
   var html='';
 
   if(activeBlocs.has('kpis')){
-    html+='<div class="stats-grid">'
+    html+='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">'
       +'<div class="stat-card"><div class="l">CA Total realise</div><div class="v" style="color:var(--bt)">'+Number(totalCA).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</div><div class="sub">'+done.length+' interventions</div></div>'
-      +'<div class="stat-card"><div class="l">Facture &amp; paye</div><div class="v" style="color:var(--gt)">'+Number(caPayee).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</div><div class="sub">'+dl.filter(function(d){return d.statut==='paye';}).length+' factures</div></div>'
+      +'<div class="stat-card"><div class="l">Facture encaissee</div><div class="v" style="color:var(--gt)">'+Number(caPayee).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</div><div class="sub">'+nbPayees+' facture(s)</div></div>'
+      +'<div class="stat-card" style="border:0.5px solid var(--oc)"><div class="l" style="color:var(--ot)">En attente</div><div class="v" style="color:var(--oc)">'+Number(caAttente).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</div><div class="sub">'+nbAttente+' facture(s)</div></div>'
       +'<div class="stat-card"><div class="l">Programmees</div><div class="v" style="color:var(--put)">'+planned.length+'</div><div class="sub">en attente</div></div>'
       +'<div class="stat-card"><div class="l">Clients</div><div class="v" style="color:var(--gt)">'+nbClients+'</div><div class="sub">'+cl.length+' contacts total</div></div>'
       +'</div>';
   }
 
-  if(activeBlocs.has('ca_mensuel')||activeBlocs.has('actes_type')){
-    html+='<div class="charts-grid">';
+  if(activeBlocs.has('factures_pipeline')){
+    var fBrouillon=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='brouillon';});
+    var fEnvoye=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='envoyé';});
+    var fPaye=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='payé';});
+    var fRefuse=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='refusé';});
+    var dBrouillon=dl.filter(function(d){return d.type_doc==='devis'&&d.statut==='brouillon';});
+    var dEnvoye=dl.filter(function(d){return d.type_doc==='devis'&&d.statut==='envoyé';});
+    var dAccepte=dl.filter(function(d){return d.type_doc==='devis'&&d.statut==='accepté';});
+    var dRefuse=dl.filter(function(d){return d.type_doc==='devis'&&d.statut==='refusé';});
+    var sumF=function(arr){return arr.reduce(function(s,d){return s+(parseFloat(d.montant_ttc)||0);},0);};
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'
+      // Colonne Devis
+      +'<div style="background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--rl);padding:16px">'
+      +'<h4 style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:12px">📋 Pipeline Devis</h4>'
+      +'<table class="stat-table"><thead><tr><th>Statut</th><th>Nb</th><th>Montant</th></tr></thead><tbody>'
+      +'<tr><td><span style="background:var(--bg2);color:var(--tx2);padding:2px 7px;border-radius:20px;font-size:10px">⚪ Brouillon</span></td><td>'+dBrouillon.length+'</td><td>'+Number(sumF(dBrouillon)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'<tr><td><span style="background:var(--bl);color:var(--bt);padding:2px 7px;border-radius:20px;font-size:10px">📤 Envoyé</span></td><td>'+dEnvoye.length+'</td><td>'+Number(sumF(dEnvoye)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'<tr><td><span style="background:var(--gl);color:var(--gt);padding:2px 7px;border-radius:20px;font-size:10px">✅ Accepté</span></td><td>'+dAccepte.length+'</td><td>'+Number(sumF(dAccepte)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'<tr><td><span style="background:var(--rl2);color:var(--rt);padding:2px 7px;border-radius:20px;font-size:10px">❌ Refusé</span></td><td>'+dRefuse.length+'</td><td>'+Number(sumF(dRefuse)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'</tbody></table></div>'
+      // Colonne Factures
+      +'<div style="background:var(--bg);border:0.5px solid var(--bd2);border-radius:var(--rl);padding:16px">'
+      +'<h4 style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:12px">🧾 Pipeline Factures</h4>'
+      +'<table class="stat-table"><thead><tr><th>Statut</th><th>Nb</th><th>Montant</th></tr></thead><tbody>'
+      +'<tr><td><span style="background:var(--bg2);color:var(--tx2);padding:2px 7px;border-radius:20px;font-size:10px">⚪ Brouillon</span></td><td>'+fBrouillon.length+'</td><td>'+Number(sumF(fBrouillon)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'<tr><td><span style="background:var(--ol);color:var(--ot);padding:2px 7px;border-radius:20px;font-size:10px">📤 Envoyée</span></td><td>'+fEnvoye.length+'</td><td style="font-weight:600;color:var(--oc)">'+Number(sumF(fEnvoye)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'<tr><td><span style="background:#F0FDF4;color:#15803d;padding:2px 7px;border-radius:20px;font-size:10px">💰 Payée</span></td><td>'+fPaye.length+'</td><td style="font-weight:600;color:var(--gt)">'+Number(sumF(fPaye)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'<tr><td><span style="background:var(--rl2);color:var(--rt);padding:2px 7px;border-radius:20px;font-size:10px">❌ Refusée</span></td><td>'+fRefuse.length+'</td><td>'+Number(sumF(fRefuse)).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td></tr>'
+      +'</tbody></table></div>'
+      +'</div>';
+  }
+
+  if(activeBlocs.has('factures_attente')){
+    var factAttList=dl.filter(function(d){return d.type_doc==='facture'&&d.statut==='envoyé';});
+    if(factAttList.length){
+      var factRows=factAttList.map(function(d){
+        return '<tr>'
+          +'<td style="font-weight:500">'+(d.numero||'—')+'</td>'
+          +'<td style="color:var(--bt);font-weight:600">'+Number(d.montant_ttc||0).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</td>'
+          +'<td style="font-size:10px;color:var(--tx2)">'+(d.date_echeance?fd(d.date_echeance):'—')+'</td>'
+          +'<td><button class="b or" style="padding:3px 8px;font-size:10px" onclick="openDocModalById(\''+d.id+'\',\''+d.contact_id+'\',\''+d.vehicule_id+'\',\''+d.group_id+'\')">Ouvrir</button></td>'
+          +'</tr>';
+      }).join('');
+      html+='<div style="background:var(--bg);border:0.5px solid var(--oc);border-radius:var(--rl);padding:16px;margin-bottom:16px">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+        +'<h4 style="font-size:12px;font-weight:600;color:var(--tx)">Factures en attente de paiement</h4>'
+        +'<span style="font-size:13px;font-weight:700;color:var(--oc)">'+Number(caAttente).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</span>'
+        +'</div>'
+        +'<table class="stat-table"><thead><tr><th>Numéro</th><th>Montant TTC</th><th>Échéance</th><th></th></tr></thead>'
+        +'<tbody>'+factRows+'</tbody></table></div>';
+    } else {
+      html+='<div class="ni" style="margin-bottom:16px;border:0.5px solid var(--bd2)">Aucune facture en attente de paiement.</div>';
+    }
+  }
+
+  if(activeBlocs.has('ca_mensuel')||activeBlocs.has('actes_type')){    html+='<div class="charts-grid">';
     html+=activeBlocs.has('ca_mensuel')?'<div class="chart-card"><h4>CA mensuel (12 mois)</h4><canvas id="ch-ca"></canvas></div>':'<div></div>';
     html+=activeBlocs.has('actes_type')&&typeSorted.length?'<div class="chart-card"><h4>Actes par type</h4><canvas id="ch-type"></canvas></div>':'<div></div>';
     html+='</div>';
@@ -1769,13 +1881,15 @@ function renderStats(){
 
   document.getElementById('content').innerHTML=html;
 
-  // ── Charts ────────────────────────────────────────────────────
+  // ── Charts : setTimeout garantit que le canvas est dans le DOM ──
+  setTimeout(function(){
+
   if(activeBlocs.has('ca_mensuel')){
     var ctx=document.getElementById('ch-ca');
     if(ctx)charts.ca=new Chart(ctx,{
       type:'line',
-      data:{labels:monthLbl,datasets:[{label:'CA',data:monthCA,borderColor:C[0],backgroundColor:'rgba(83,74,183,.1)',tension:.3,fill:true,pointRadius:3}]},
-      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{font:{size:10}}}}}
+      data:{labels:monthLbl,datasets:[{label:'CA (€)',data:monthCA,borderColor:C[0],backgroundColor:'rgba(83,74,183,.1)',tension:.3,fill:true,pointRadius:4,pointBackgroundColor:C[0]}]},
+      options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(i){return Number(i.raw).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});}}}},scales:{y:{ticks:{font:{size:10},callback:function(v){return Number(v).toLocaleString('fr-FR',{maximumFractionDigits:0})+'€';}},beginAtZero:true},x:{ticks:{font:{size:10}}}}}
     });
   }
   if(activeBlocs.has('actes_type')&&typeSorted.length){
@@ -1803,6 +1917,8 @@ function renderStats(){
       options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},stepSize:1}}}}
     });
   }
+
+  },0); // fin setTimeout
 }
 
 // ── ADMIN ──────────────────────────────────────────────
