@@ -411,6 +411,8 @@ canvas{max-height:220px}
         <h3 id="doc-modal-title">Nouveau devis</h3>
         <span id="doc-type-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600"></span>
         <span id="doc-statut-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500"></span>
+        <span id="doc-statut-date" style="font-size:10px;color:var(--tx2);display:none"></span>
+        <span id="doc-statut-date" style="font-size:10px;color:var(--tx2);display:none"></span>
         <span id="doc-source-link" style="display:none;align-items:center;gap:6px"></span>
       </div>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
@@ -588,7 +590,7 @@ async function nav(id,view,vid){selected=id;curCID=id;if(vid!==undefined)curVID=
 async function showClient(id){
   const c=contacts.find(x=>x.id===id);
   document.getElementById('t-title').textContent=c.prenom+' '+c.nom;
-  document.getElementById('t-right').innerHTML=`<span class="badge ${c.statut}">${c.statut==='client'?'Client':'Prospect'}</span><button class="b g" onclick="nav('${id}','vehicles')">🚗 Véhicules</button>`;
+  document.getElementById('t-right').innerHTML=`<span class="badge ${c.statut}">${c.statut==='client'?'Client':'Prospect'}</span>${c.num_client?`<button class="b v" onclick="showMemberCard('${id}')">💳 Carte membre</button>`:''}<button class="b g" onclick="nav('${id}','vehicles')">🚗 Véhicules</button>`;
   const eb=can('create')?`<button class="b" onclick="openCM('${id}')">Modifier</button>`:'';
   const db=can('delete')?`<button class="b d" onclick="delContact('${id}')">Supprimer</button>`:'';
 
@@ -675,7 +677,13 @@ async function saveContact(){
   const prenom=document.getElementById('cp').value.trim(),nom=document.getElementById('cn').value.trim();
   if(!prenom||!nom){alert('Prénom et nom requis.');return;}
   setBtn('sc-btn',true);
-  const data={prenom,nom,dob:document.getElementById('cd').value||null,adresse:document.getElementById('ca').value.trim(),statut:document.getElementById('cs').value,type_client:cTC,profession:document.getElementById('cpr').value.trim(),infirmier:document.getElementById('ci').checked,email:document.getElementById('cem').value.trim()||null,telephone:document.getElementById('ctel').value.trim()||null,note:document.getElementById('cno').value.trim()};
+  let numClient=null;
+  if(!editCID){
+    // Générer un numéro client unique : XL + année + séquence 4 chiffres
+    const{count}=await SB.from('contacts').select('*',{count:'exact',head:true});
+    numClient='XL'+new Date().getFullYear()+String((count||0)+1).padStart(4,'0');
+  }
+  const data={prenom,nom,dob:document.getElementById('cd').value||null,adresse:document.getElementById('ca').value.trim(),statut:document.getElementById('cs').value,type_client:cTC,profession:document.getElementById('cpr').value.trim(),infirmier:document.getElementById('ci').checked,email:document.getElementById('cem').value.trim()||null,telephone:document.getElementById('ctel').value.trim()||null,note:document.getElementById('cno').value.trim(),...(numClient?{num_client:numClient}:{})};
   let error,newId=editCID;
   if(editCID){({error}=await SB.from('contacts').update(data).eq('id',editCID));}
   else{const r=await SB.from('contacts').insert(data).select().single();error=r.error;if(!error)newId=r.data.id;}
@@ -1168,6 +1176,8 @@ async function openDocModal(gid,cid,vid,docId,tvaPct){
       }
       document.getElementById('doc-status').value=d.statut;
       currentDoc.originalStatut=d.statut; // statut au moment de l'ouverture
+      currentDoc.statutUpdatedAt=d.statut_updated_at||null;
+      currentDoc.statutUpdatedAt=d.statut_updated_at||null;
       document.getElementById('doc-date-em').value=d.date_emission?d.date_emission.split('T')[0]:today2;
       document.getElementById('doc-date-ech').value=d.date_echeance?d.date_echeance.split('T')[0]:'';
       document.getElementById('doc-tva').value=d.tva_pct!=null?d.tva_pct:8.5;
@@ -1405,7 +1415,9 @@ async function saveDoc(){
   const tva=parseFloat(document.getElementById('doc-tva').value)||0;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
   const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
-  const data={group_id:currentDoc.groupId,contact_id:currentDoc.contactId,vehicule_id:currentDoc.vehiculeId,type_doc:document.getElementById('doc-type').value,numero:document.getElementById('doc-num').value,date_emission:document.getElementById('doc-date-em').value||null,date_echeance:document.getElementById('doc-date-ech').value||null,statut:document.getElementById('doc-status').value,lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,mentions:document.getElementById('doc-mentions').value||null,note_interne:document.getElementById('doc-note-int').value||null,bpa:getBPA()||null};
+  const newStatut=document.getElementById('doc-status').value;
+  const statutChanged=newStatut!==(currentDoc.originalStatut||'brouillon');
+  const data={group_id:currentDoc.groupId,contact_id:currentDoc.contactId,vehicule_id:currentDoc.vehiculeId,type_doc:document.getElementById('doc-type').value,numero:document.getElementById('doc-num').value,date_emission:document.getElementById('doc-date-em').value||null,date_echeance:document.getElementById('doc-date-ech').value||null,statut:newStatut,lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,mentions:document.getElementById('doc-mentions').value||null,note_interne:document.getElementById('doc-note-int').value||null,bpa:getBPA()||null,statut_updated_at:statutChanged?new Date().toISOString():(currentDoc.statutUpdatedAt||new Date().toISOString())};
   let error;
   if(currentDoc.docId){
     ({error}=await SB.from('documents_facturation').update(data).eq('id',currentDoc.docId));
@@ -1471,6 +1483,12 @@ function updateDocBadges(){
   const cb=document.getElementById('btn-convert-facture');
   const pb=document.getElementById('btn-marquer-paye');
   if(tb){tb.textContent=type==='facture'?'🧾 Facture':'📋 Devis';tb.style.background=type==='facture'?'#EEEDFE':'#FEF3E2';tb.style.color=type==='facture'?'#3C3489':'#92400E';}
+  var sdEl=document.getElementById('doc-statut-date');
+  if(sdEl){var sdt=currentDoc.statutUpdatedAt;
+    sdEl.textContent=sdt?('depuis le '+fd(sdt.split('T')[0])):'';sdEl.style.display=sdt?'inline':'none';}
+  var sdEl=document.getElementById('doc-statut-date');
+  if(sdEl){var sdt=currentDoc.statutUpdatedAt;
+    sdEl.textContent=sdt?('depuis le '+fd(sdt.split('T')[0])):'';sdEl.style.display=sdt?'inline':'none';}
   if(sb){sb.textContent=STATUT_LABELS[statut]||statut;sb.style.background=STATUT_BG[statut]||'#f5f5f4';sb.style.color=STATUT_COLORS[statut]||'#78716c';}
   // Lien devis↔facture bidirectionnel
   var linkEl=document.getElementById('doc-source-link');
@@ -1524,7 +1542,7 @@ async function convertToFacture(){
     type_doc:'facture',numero:numFac,
     date_emission:today(),
     date_echeance:addDays(today(),30),
-    statut:'brouillon',
+    statut:'brouillon',statut_updated_at:new Date().toISOString(),
     lignes:currentDoc.lignes,montant_ht:ht,tva_pct:tva,montant_tva:tvaMnt,montant_ttc:ttc,
     mentions:document.getElementById('doc-mentions').value||null,
     bpa:null,note_interne:null,
@@ -1539,7 +1557,7 @@ async function convertToFacture(){
 
 async function marquerPaye(){
   if(!currentDoc.docId){toast("Enregistrez d'abord.",'ko');return;}
-  await SB.from('documents_facturation').update({statut:'payé'}).eq('id',currentDoc.docId);
+  await SB.from('documents_facturation').update({statut:'payé',statut_updated_at:new Date().toISOString()}).eq('id',currentDoc.docId);
   document.getElementById('doc-status').value='payé';
   currentDoc.statut='payé';
   updateDocBadges();
@@ -1628,7 +1646,7 @@ function renderDocsList(){
             <span class="doc-status ${d.statut}" style="background:${STATUT_BG[d.statut]||'#f5f5f4'};color:${STATUT_COLORS[d.statut]||'#78716c'}">${STATUT_LABELS[d.statut]||d.statut}</span>
           </div>
           <div style="font-size:11px;color:var(--tx2)">${c?c.prenom+' '+c.nom:'—'}${v?' · 🚗 '+v.marque+' '+v.modele+(v.plaque?' ('+v.plaque+')':''):''}</div>
-          <div style="font-size:10px;color:var(--tx2);margin-top:3px">Émis le ${fd(d.date_emission)}${d.date_echeance?' · Échéance : '+fd(d.date_echeance):''}</div>
+          <div style="font-size:10px;color:var(--tx2);margin-top:3px">Émis le ${fd(d.date_emission)}${d.date_echeance?' · Échéance : '+fd(d.date_echeance):''}${d.statut_updated_at?' · Statut le '+fd(d.statut_updated_at.split('T')[0]):''}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:16px;font-weight:700;color:var(--bt)">${fm(d.montant_ttc)}</div>
@@ -1731,7 +1749,7 @@ async function quickConvert(docId,cid,vid,gid){
 // Marquer payée rapidement depuis la liste
 async function quickPay(docId){
   if(!confirm('Marquer cette facture comme payée ?'))return;
-  const{error}=await SB.from('documents_facturation').update({statut:'payé'}).eq('id',docId);
+  const{error}=await SB.from('documents_facturation').update({statut:'payé',statut_updated_at:new Date().toISOString()}).eq('id',docId);
   if(error){toast('Erreur : '+error.message,'ko');return;}
   toast('Facture marquée payée ✓','ok');
   await showAllDocs();
@@ -2148,7 +2166,116 @@ function renderStats(){
   },0); // fin setTimeout
 }
 
-// ── ADMIN ──────────────────────────────────────────────
+// ── CARTE DE MEMBRE ───────────────────────────────────────────────
+function showMemberCard(id){
+  const c=contacts.find(x=>x.id===id);
+  if(!c||!c.num_client){toast('Numéro client non disponible.','ko');return;}
+  const cardHTML=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Carte Membre — ${c.prenom} ${c.nom}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a2e;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:'DM Sans',sans-serif;padding:30px}
+  h2{color:#fff;font-family:'DM Sans',sans-serif;font-weight:300;font-size:14px;margin-bottom:24px;opacity:.6;letter-spacing:.1em;text-transform:uppercase}
+  .card{
+    width:85.6mm;height:53.98mm;
+    background:linear-gradient(135deg,#1a1a2e 0%,#16213e 40%,#0f3460 100%);
+    border-radius:12px;position:relative;overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.1);
+  }
+  /* Effets de lumière */
+  .card::before{content:'';position:absolute;top:-40%;right:-20%;width:80%;height:180%;
+    background:radial-gradient(ellipse,rgba(99,179,237,.15) 0%,transparent 60%);pointer-events:none}
+  .card::after{content:'';position:absolute;bottom:-30%;left:-10%;width:60%;height:120%;
+    background:radial-gradient(ellipse,rgba(246,173,85,.08) 0%,transparent 60%);pointer-events:none}
+  /* Cercles décoratifs */
+  .circles{position:absolute;top:0;right:0;width:100%;height:100%;pointer-events:none}
+  .circle1{position:absolute;top:-15mm;right:-10mm;width:40mm;height:40mm;
+    border-radius:50%;background:rgba(99,179,237,.06);border:1px solid rgba(99,179,237,.12)}
+  .circle2{position:absolute;top:-8mm;right:-4mm;width:28mm;height:28mm;
+    border-radius:50%;background:rgba(99,179,237,.04);border:1px solid rgba(99,179,237,.08)}
+  /* Contenu */
+  .card-inner{position:relative;z-index:1;padding:5mm 6mm;height:100%;display:flex;flex-direction:column;justify-content:space-between}
+  /* Logo / Société */
+  .brand{display:flex;align-items:center;gap:2.5mm}
+  .brand-icon{width:7mm;height:7mm;background:linear-gradient(135deg,#63b3ed,#4299e1);border-radius:2mm;display:flex;align-items:center;justify-content:center;font-size:4mm;flex-shrink:0}
+  .brand-name{font-family:'Bebas Neue',sans-serif;font-size:5mm;color:#fff;letter-spacing:.05em;line-height:1}
+  .brand-sub{font-size:1.8mm;color:rgba(99,179,237,.8);font-weight:300;letter-spacing:.12em;text-transform:uppercase;margin-top:.5mm}
+  /* Chip décoratif */
+  .chip{width:8mm;height:6mm;background:linear-gradient(135deg,#f6ad55,#ed8936);border-radius:1.2mm;
+    display:grid;grid-template-columns:1fr 1fr;gap:.4mm;padding:.6mm;opacity:.9}
+  .chip-cell{background:rgba(0,0,0,.2);border-radius:.3mm}
+  /* Infos client */
+  .client-info{display:flex;flex-direction:column;gap:1mm}
+  .client-name{font-family:'Bebas Neue',sans-serif;font-size:5.5mm;color:#fff;letter-spacing:.08em;line-height:1}
+  .client-num{font-family:'DM Sans',sans-serif;font-size:2.8mm;color:rgba(99,179,237,.9);letter-spacing:.3em;font-weight:600}
+  /* Pied de carte */
+  .card-footer{display:flex;align-items:flex-end;justify-content:space-between}
+  .member-label{font-size:1.8mm;color:rgba(255,255,255,.4);letter-spacing:.15em;text-transform:uppercase;font-weight:300}
+  .stripe{width:12mm;height:1mm;background:linear-gradient(90deg,rgba(99,179,237,.3),rgba(99,179,237,.8),rgba(99,179,237,.3));border-radius:1mm}
+  /* Actions */
+  .actions{display:flex;gap:10px;margin-top:20px}
+  .btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .2s}
+  .btn-print{background:#4299e1;color:#fff}.btn-print:hover{background:#3182ce}
+  .btn-close{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}.btn-close:hover{background:rgba(255,255,255,.15)}
+  @media print{body{background:#fff;padding:5mm}h2,.actions{display:none}.card{box-shadow:none}}
+</style>
+</head>
+<body>
+  <h2>Carte de membre</h2>
+  <div class="card">
+    <div class="circles"><div class="circle1"></div><div class="circle2"></div></div>
+    <div class="card-inner">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div class="brand">
+          <div class="brand-icon">⚡</div>
+          <div><div class="brand-name">XL & CIE SERVICES</div><div class="brand-sub">Membre</div></div>
+        </div>
+        <div class="chip">
+          <div class="chip-cell"></div><div class="chip-cell"></div>
+          <div class="chip-cell"></div><div class="chip-cell"></div>
+        </div>
+      </div>
+      <div class="client-info">
+        <div class="client-name">${c.prenom} ${c.nom}</div>
+        <div class="client-num">${c.num_client}</div>
+      </div>
+      <div class="card-footer">
+        <div><div class="member-label">Carte de membre</div><div class="stripe" style="margin-top:2mm"></div></div>
+        <div style="font-size:2mm;color:rgba(255,255,255,.25);font-weight:300">XL & CIE SERVICES</div>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
+    <button class="btn btn-close" onclick="
+      const body=document.body;
+      const orig=body.innerHTML;
+      const card=document.querySelector('.card');
+      const clone=card.cloneNode(true);
+      const container=document.createElement('div');
+      container.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9999';
+      const inner=document.createElement('div');
+      inner.style.cssText='background:#1a1a2e;padding:30px;border-radius:16px;text-align:center';
+      const label=document.createElement('p');
+      label.style.cssText='color:white;font-size:12px;margin-bottom:15px;opacity:.6';
+      label.textContent='Envoi par email ou WhatsApp : copiez l image ou imprimez en PDF';
+      inner.appendChild(label);
+      inner.appendChild(clone);
+      const closeBtn=document.createElement('button');
+      closeBtn.textContent='✕ Fermer';
+      closeBtn.style.cssText='margin-top:15px;padding:8px 20px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;border-radius:8px;cursor:pointer;font-size:12px';
+      closeBtn.onclick=()=>container.remove();
+      inner.appendChild(closeBtn);
+      container.appendChild(inner);
+      document.body.appendChild(container);
+    ">📧 Envoyer</button>
+  </div>
+</body></html>`;
+  const w=window.open('','_blank','width=500,height=400');
+  w.document.write(cardHTML);
+  w.document.close();
+}
 async function showAdmin(){
   document.getElementById('t-title').textContent='Administration';
   document.getElementById('t-right').innerHTML='';selected=null;renderList();
