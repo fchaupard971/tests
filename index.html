@@ -846,7 +846,15 @@ async function showInterventions(cid,vid){
 
 async function delIG(gid,vid){
   if(!can('delete')){alert('Accès non autorisé.');return;}
-  if(!confirm('Supprimer ce groupe d\'interventions ?'))return;
+  // Vérifier les documents liés
+  const{data:docs}=await SB.from('documents_facturation').select('id,type_doc,statut,numero').eq('group_id',gid);
+  if(docs&&docs.length){
+    const facture=docs.find(d=>d.type_doc==='facture');
+    const devisAccepte=docs.find(d=>d.type_doc==='devis'&&d.statut==='accepté');
+    if(facture){toast('Impossible — une facture ('+facture.numero+') est rattachée à cette intervention.','ko');return;}
+    if(devisAccepte){toast('Impossible — un devis accepté ('+devisAccepte.numero+') est rattaché à cette intervention.','ko');return;}
+  }
+  if(!confirm("Supprimer ce groupe d'interventions ?"))return;
   const{error}=await SB.from('intervention_groups').delete().eq('id',gid);
   if(error){toast('Erreur : '+error.message,'ko');return;}
   toast('Intervention supprimée','ok');await showInterventions(curCID,vid);
