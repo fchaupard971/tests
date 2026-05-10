@@ -435,7 +435,7 @@ canvas{max-height:220px}
         <div class="fg"><label>Date d'échéance</label><input id="doc-date-ech" type="date" onchange="renderDocPreviewSync()"></div>
       </div>
       <div class="fr">
-        <div class="fg"><label>TVA %</label><input id="doc-tva" type="number" value="8.5" min="0" max="100" step="0.1" oninput="recalcDoc()"></div>
+        <div class="fg"><label>TVA %</label><input id="doc-tva" type="number" value="8.5" min="0" max="100" step="0.1" oninput="recalcDoc();renderDocPreviewSync()"></div>
         <div class="fg"><label>Numéro</label><input id="doc-num" placeholder="auto" readonly style="background:var(--bg2);cursor:default;color:var(--tx2)"></div>
       </div>
       <!-- Lignes -->
@@ -444,6 +444,32 @@ canvas{max-height:220px}
       <button class="b" style="width:100%;margin-bottom:14px" onclick="addLigne()">+ Ajouter une ligne</button>
       <!-- Totaux -->
       <div id="doc-totaux" style="text-align:right;margin-bottom:14px"></div>
+      <!-- Convertisseur HT ↔ TTC -->
+      <div id="conv-wrap" style="background:var(--bg2);border:0.5px solid var(--bd);border-radius:var(--r);padding:11px 13px;margin-bottom:14px">
+        <div style="font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px">🔄 Convertisseur HT ↔ TTC</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:8px">
+          <div>
+            <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">Montant HT (€)</div>
+            <input id="conv-ht" type="number" min="0" step="0.01" placeholder="0.00"
+              style="width:100%;font-size:13px;font-weight:500;padding:7px 9px;border:0.5px solid var(--bd);border-radius:var(--r);background:var(--bg);color:var(--tx);font-family:var(--font);outline:none"
+              oninput="convFromHT()">
+          </div>
+          <div style="font-size:16px;color:var(--tx2);user-select:none">⇄</div>
+          <div>
+            <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">Montant TTC (€)</div>
+            <input id="conv-ttc" type="number" min="0" step="0.01" placeholder="0.00"
+              style="width:100%;font-size:13px;font-weight:500;padding:7px 9px;border:0.5px solid var(--bd);border-radius:var(--r);background:var(--bg);color:var(--tx);font-family:var(--font);outline:none"
+              oninput="convFromTTC()">
+          </div>
+          <div style="font-size:16px;color:var(--tx2);user-select:none">=</div>
+          <div>
+            <div style="font-size:10px;color:var(--tx2);margin-bottom:4px">TVA (€)</div>
+            <input id="conv-tva-mnt" type="text" readonly placeholder="0.00"
+              style="width:100%;font-size:13px;font-weight:500;padding:7px 9px;border:0.5px solid var(--bd2);border-radius:var(--r);background:var(--bg2);color:var(--bt);font-family:var(--font);outline:none;cursor:default">
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--tx2);margin-top:7px">Taux TVA utilisé : <strong id="conv-tva-pct">8.5</strong>% — modifiez le taux TVA ci-dessus pour mettre à jour</div>
+      </div>
       <div class="fg"><label>Mentions légales / Conditions de règlement</label><textarea id="doc-mentions" rows="2" placeholder="Ex : Paiement à 30 jours à réception de facture. Tout retard entraîne des pénalités…" oninput="renderDocPreviewSync()"></textarea></div>
       <div class="fg"><label>Bon pour accord (texte imprimé sur le document)</label>
         <select id="doc-bpa" onchange="renderDocPreviewSync()" style="font-size:12px;padding:8px 10px;border:0.5px solid var(--bd);border-radius:var(--r);background:var(--bg2);color:var(--tx);font-family:var(--font);outline:none;width:100%">
@@ -1278,10 +1304,38 @@ function updLigne(i,f,v){
   // Met à jour uniquement le total de la ligne et les totaux globaux sans recréer le DOM
   recalcTotaux();
 }
-function recalcDoc(){recalcTotaux();renderDocPreviewSync();}
+function recalcDoc(){recalcTotaux();renderDocPreviewSync();syncConvTvaRate();}
+function syncConvTvaRate(){
+  const tva=parseFloat(document.getElementById('doc-tva')?.value)||8.5;
+  const el=document.getElementById('conv-tva-pct');
+  if(el)el.textContent=tva;
+  // Recalculer le convertisseur avec le nouveau taux si une valeur est déjà saisie
+  const htEl=document.getElementById('conv-ht');
+  if(htEl&&htEl.value)convFromHT();
+}
+function convFromHT(){
+  const tva=parseFloat(document.getElementById('doc-tva')?.value)||8.5;
+  const ht=parseFloat(document.getElementById('conv-ht')?.value)||0;
+  const tvaMnt=ht*tva/100;
+  const ttc=ht+tvaMnt;
+  const ttcEl=document.getElementById('conv-ttc');
+  const tvaMntEl=document.getElementById('conv-tva-mnt');
+  if(ttcEl)ttcEl.value=ht>0?ttc.toFixed(2):'';
+  if(tvaMntEl)tvaMntEl.value=ht>0?tvaMnt.toFixed(2)+' €':'';
+}
+function convFromTTC(){
+  const tva=parseFloat(document.getElementById('doc-tva')?.value)||8.5;
+  const ttc=parseFloat(document.getElementById('conv-ttc')?.value)||0;
+  const ht=ttc/(1+tva/100);
+  const tvaMnt=ttc-ht;
+  const htEl=document.getElementById('conv-ht');
+  const tvaMntEl=document.getElementById('conv-tva-mnt');
+  if(htEl)htEl.value=ttc>0?ht.toFixed(2):'';
+  if(tvaMntEl)tvaMntEl.value=ttc>0?tvaMnt.toFixed(2)+' €':'';
+}
 function recalcTotaux(){
   // Recalcule les totaux de chaque ligne et les totaux globaux
-  const tva=parseFloat(document.getElementById('doc-tva')?.value)||0;
+  const tva=parseFloat(document.getElementById('doc-tva')?.value)||8.5;
   let ht=0;
   currentDoc.lignes.forEach((l,i)=>{
     const total=(l.qte||1)*(l.pu||0);
@@ -1359,7 +1413,7 @@ function renderDocPreviewSync(){
   const num=document.getElementById('doc-num')?.value||'—';
   const dateEm=fd(document.getElementById('doc-date-em')?.value)||'—';
   const dateEch=fd(document.getElementById('doc-date-ech')?.value)||'—';
-  const tva=parseFloat(document.getElementById('doc-tva')?.value)||0;
+  const tva=parseFloat(document.getElementById('doc-tva')?.value)||8.5;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
   const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
   const mentions=document.getElementById('doc-mentions')?.value||'';
@@ -1418,7 +1472,8 @@ async function saveDoc(){
   if(type==='facture'&&origStatut==='payé'){toast('Cette facture est payée et ne peut plus être modifiée.','ko');return;}
   if(type==='devis'&&origStatut==='accepté'){toast('Ce devis est accepté et ne peut plus être modifié.','ko');return;}
   setBtn('save-doc-btn',true);
-  const tva=parseFloat(document.getElementById('doc-tva').value)||0;
+  const tvaRaw=parseFloat(document.getElementById('doc-tva').value);
+  const tva=isNaN(tvaRaw)?8.5:tvaRaw;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
   const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
   const newStatut=document.getElementById('doc-status').value;
@@ -1469,7 +1524,7 @@ async function sendDocWA(){
   const typeDoc=document.getElementById('doc-type').value;
   const num=document.getElementById('doc-num').value;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
-  const tva=parseFloat(document.getElementById('doc-tva').value)||0;
+  const tva=parseFloat(document.getElementById('doc-tva').value)||8.5;
   const ttc=ht*(1+tva/100);
   const msg=encodeURIComponent(`Bonjour ${c?.prenom||''},\n\nVoici votre ${typeDoc==='facture'?'facture':'devis'} N° ${num} pour un montant de ${Number(ttc).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})}.\n\nXL & CIE SERVICES`);
   const url=tel?`https://wa.me/${tel}?text=${msg}`:`https://wa.me/?text=${msg}`;
@@ -1539,7 +1594,8 @@ async function convertToFacture(){
   // 2. Générer numéro facture
   const{count}=await SB.from('documents_facturation').select('*',{count:'exact',head:true}).eq('type_doc','facture');
   const numFac=`FAC-${new Date().getFullYear()}-${String((count||0)+1).padStart(4,'0')}`;
-  const tva=parseFloat(document.getElementById('doc-tva').value)||0;
+  const tvaRaw=parseFloat(document.getElementById('doc-tva').value);
+  const tva=isNaN(tvaRaw)?8.5:tvaRaw;
   const ht=currentDoc.lignes.reduce((s,l)=>s+(l.qte||1)*(l.pu||0),0);
   const tvaMnt=ht*tva/100;const ttc=ht+tvaMnt;
   // 3. Créer la facture
