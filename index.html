@@ -2300,10 +2300,26 @@ function showMemberCard(id){
   @media print{
     @page{size:85.6mm 53.98mm;margin:0}
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-    body{background:#0a0a0a!important;padding:0;min-height:auto}
-    h2,.actions{display:none}
-    .card{width:85.6mm!important;height:53.98mm!important;border-radius:0;box-shadow:none;
-      background:linear-gradient(135deg,#1a1a1a 0%,#0d0d0d 35%,#1c1c1c 65%,#111 100%)!important}
+    body{background:#0a0a0a!important;padding:0!important;margin:0!important;min-height:auto;display:block}
+    h2,.actions{display:none!important}
+    .card{
+      width:85.6mm!important;height:53.98mm!important;
+      border-radius:8px!important;
+      background:linear-gradient(135deg,#1a1a1a 0%,#0d0d0d 35%,#1c1c1c 65%,#111 100%)!important;
+      border:1px solid rgba(212,175,55,.25)!important;
+      box-shadow:inset 0 1px 0 rgba(212,175,55,.15)!important;
+      position:relative!important;overflow:hidden!important;
+    }
+    .card::before{background:repeating-linear-gradient(105deg,transparent,transparent 2px,rgba(255,255,255,.012) 2px,rgba(255,255,255,.012) 4px)!important}
+    .card::after{background:linear-gradient(115deg,transparent 40%,rgba(212,175,55,.06) 50%,transparent 60%)!important}
+    .corner{border-color:rgba(212,175,55,.4)!important}
+    .brand-name{background:linear-gradient(135deg,#d4af37,#f5e6a3,#c9971c)!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important}
+    .brand-tagline{color:rgba(212,175,55,.5)!important}
+    .chip{background:linear-gradient(135deg,#c9a227,#f5e6a3,#b8941f)!important}
+    .client-name{background:linear-gradient(135deg,#f5e6a3,#d4af37,#f5e6a3)!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important}
+    .client-num{color:rgba(212,175,55,.6)!important}
+    .gold-line{background:linear-gradient(90deg,transparent,rgba(212,175,55,.4),transparent)!important}
+    .member-label{color:rgba(212,175,55,.35)!important}
   }
 </style>
 </head>
@@ -2335,7 +2351,6 @@ function showMemberCard(id){
         <div class="gold-line"></div>
         <div class="card-footer">
           <div class="member-label">Carte de membre</div>
-          <div class="platinum-badge">Platinum</div>
         </div>
       </div>
     </div>
